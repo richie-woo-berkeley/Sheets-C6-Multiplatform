@@ -4,7 +4,7 @@
   "description": "Cross-platform JavaScript library for synthetic biology tools (C6)",
   "main": "dist/c6-node.js",
   "scripts": {
-    "build": "rollup -c rollup.config.mjs && cp dist/c6-web.js docs/ && cp dist/c6-sheets.gs docs/",
+    "build": "rollup -c rollup.config.mjs && mkdir -p ../docs && cp dist/c6-web.js ../docs/ && cp dist/c6-sheets.gs ../docs/",
     "start": "npm run build"
   },
   "keywords": ["synthetic biology", "dna", "bioinformatics", "javascript", "toolkit"],
