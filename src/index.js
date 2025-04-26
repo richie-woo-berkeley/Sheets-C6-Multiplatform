@@ -1,4 +1,19 @@
 // src/index.js
-export function hello() {
-    return "Hello from C6!";
-  }
+
+import * as Annotator from './C6-Annotator.js';
+import * as Gene from './C6-Gene.js';
+import * as Oligos from './C6-Oligos.js';
+import * as Seq from './C6-Seq.js';
+import * as Sim from './C6-Sim.js';
+import * as Utils from './C6-Utils.js';
+
+const C6 = {
+  ...Annotator,
+  ...Gene,
+  ...Oligos,
+  ...Seq,
+  ...Sim,
+  ...Utils
+};
+
+export default C6;
