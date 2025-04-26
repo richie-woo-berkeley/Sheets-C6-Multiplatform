@@ -58,7 +58,7 @@ console.log(result);
 
 ## Repository
 
-[GitHub Repository](https://github.com/YOUR_USERNAME/C6-Multiplatform)
+[GitHub Repository](https://github.com/UCB-BioE-Anderson-Lab/C6-Multiplatform)
 
 ---
 
