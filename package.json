@@ -1,9 +1,20 @@
 {
-"type": "module",
+  "name": "c6-sim",
+  "version": "1.0.1",
+  "description": "Multiplatform molecular biology construction simulator",
+  "type": "module",
+  "main": "dist/c6-sim.min.js",
+  "module": "dist/c6-sim.min.js",
   "scripts": {
     "build": "rollup -c",
     "watch": "rollup -c -w"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YOUR_USERNAME/C6-Multiplatform.git"
+  },
+  "author": "J. Christopher Anderson",
+  "license": "MIT",
   "devDependencies": {
     "rollup": "^4.40.0"
   }
