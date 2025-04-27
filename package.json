@@ -18,6 +18,7 @@
   "author": "J. Christopher Anderson",
   "license": "MIT",
   "devDependencies": {
+    "@rollup/plugin-json": "^6.1.0",
     "rollup": "^4.40.0",
     "vitest": "^3.1.2"
   }
