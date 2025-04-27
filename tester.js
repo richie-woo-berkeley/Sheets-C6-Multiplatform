@@ -1,6 +1,6 @@
 // Import parseCF and simCF from C6-Sim module
-import { parseCF, simCF, gibson, goldengate } from './src/C6-Sim.js';
-import { plasmid,dsDNA,oligo, comparePolynucleotides } from './src/C6-Seq.js';
+import { parseCF, simCF, gibson, ligate, goldengate } from './src/C6-Sim.js';
+import { plasmid,dsDNA,oligo, polynucleotide, comparePolynucleotides } from './src/C6-Seq.js';
 
 
 
@@ -48,9 +48,11 @@ import { plasmid,dsDNA,oligo, comparePolynucleotides } from './src/C6-Seq.js';
 // const parsed = parseCF(input);
 // console.log(parsed)
 
-const frag1 = dsDNA('ccaaaGGTCTCAGCTTTGATCGATTCAACCTACTTCCCCTTCATAATCGGTACTAGAGACCacgac');
-const frag2 = dsDNA('GGTCTCATACTCAAAATTTACTGACTGGACATGGTCACCACTTAAGTAAGCTTTGAGACC');
-const result = goldengate([frag1, frag2], 'BsaI');
-const expected = plasmid("GCTTTGATCGATTCAACCTACTTCCCCTTCATAATCGGTACTCAAAATTTACTGACTGGACATGGTCACCACTTAAGTAA");
-const passed = comparePolynucleotides(result, expected);
-console.log(passed);
+const frag1 = polynucleotide("AAAAA", "", "GATC", true, false, false, "hydroxyl", "phos5");
+const frag2 = polynucleotide("GGGGG", "GATC", "", true, false, false, "phos5", "hydroxyl");
+
+console.log(frag1);
+console.log(frag2);
+
+const product = ligate([frag1, frag2]);
+console.log(product);

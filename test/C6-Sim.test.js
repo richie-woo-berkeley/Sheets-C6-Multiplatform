@@ -2,6 +2,7 @@ import { dsDNA, plasmid, oligo } from 'src/C6-Seq.js';
 import { Polynucleotide, comparePolynucleotides } from 'src/C6-Seq.js';
 import { describe, it, expect } from 'vitest';
 import { PCR, gibson, goldengate, ligate, cutOnce, digest, parseCF, simCF } from 'src/C6-Sim.js';
+import { polynucleotide } from '../src/C6-Seq';
 
 describe('C6-Sim Tests', () => {
   
@@ -65,29 +66,19 @@ describe('C6-Sim Tests', () => {
   });
 
   it('ligate correctly ligates two compatible fragments and circularizes single fragment', async () => {
-    const frag1 = dsDNA("AAAAA", "GATC", "", true, false, false, "phos5", "hydroxyl");
-    const frag2 = dsDNA("GGGGG", "", "GATC", true, false, false, "hydroxyl", "phos5");
+    const frag1 = polynucleotide("AAAAA", "", "GATC", true, false, false, "hydroxyl", "phos5");
+    const frag2 = polynucleotide("GGGGG", "GATC", "", true, false, false, "phos5", "hydroxyl");
 
     const product = ligate([frag1, frag2]);
-    expect(product.sequence).toBe('AAAAAGGGGG');
+    expect(product.sequence).toBe('AAAAAGATCGGGGG');
     expect(product.isCircular).toBe(false);
 
     // Now test circularization of a single compatible fragment
-    const singleFrag = dsDNA({
-      sequence: "CCCCCC",
-      ext5: "GGGG",
-      ext3: "GGGG",
-      isDoubleStranded: true,
-      isRNA: false,
-      isCircular: false,
-      mod_ext5: "phos5",
-      mod_ext3: "phos5"
-    });
+    const singleFrag = polynucleotide("AAAAA", "GATC", "GATC", true, false, false, "phos5", "phos5");
+
     const circular = ligate([singleFrag]);
     expect(circular.isCircular).toBe(true);
-    expect(circular.ext5).toBe('');
-    expect(circular.ext3).toBe('');
-    expect(comparePolynucleotides(circular, plasmid("CCCCCCGGGG"))).toBe(true);
+    expect(comparePolynucleotides(circular, plasmid("AAAAAGATC"))).toBe(true);
   });
 
   it('parseCF parses simple construction file into correct steps and sequences', () => {

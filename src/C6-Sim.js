@@ -588,10 +588,10 @@ function ligateEnds(poly) {
  * @returns {Polynucleotide} The assembled Polynucleotide.
  */
 function goldengate(polynucleotides, enzyme) {
-  console.log("what's polynucleotidessssss");
-  console.log(polynucleotides);
-  console.log("what's enzymmmme");
-  console.log(enzyme);
+  // console.log("what's polynucleotidessssss");
+  // console.log(polynucleotides);
+  // console.log("what's enzymmmme");
+  // console.log(enzyme);
   if (!simRestrictionEnzymes.hasOwnProperty(enzyme)) {
     throw new Error(`Enzyme ${enzyme} not found for Golden Gate assembly`);
   }
