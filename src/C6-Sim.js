@@ -1,4 +1,11 @@
-import { revcomp, resolveToSeq, isPalindromic, Polynucleotide, resolveToPoly } from './C6-Seq.js';
+import { revcomp, resolveToSeq, isPalindromic, Polynucleotide, polynucleotide, resolveToPoly, plasmid, oligo, dsDNA } from './C6-Seq.js';
+
+// Helper to display a sequence with context for error messages
+function displaySeq(seq) {
+  if (!seq) return seq;
+  if (seq.length <= 50) return seq;
+  return seq.slice(0, 20) + "[...]" + seq.slice(-20);
+}
 
 /**
  * @file C6-Sim.gs
@@ -165,15 +172,19 @@ import { revcomp, resolveToSeq, isPalindromic, Polynucleotide, resolveToPoly } f
  * }
  * 
  */
+/**
+ * Parses a construction file (CF) and sequences into the appropriate steps and sequences.
+ * 
+ * @param  {...any} blobs - The construction file data that may be passed as single/multiple string inputs.
+ * @returns {Object} An object containing 'steps' (an array of steps) and 'sequences' (an object of DNA sequences).
+ */
 function parseCF(...blobs) {
     const normalizeOperation = {
         "pcr": "PCR",
         "digest": "Digest",
         "ligate": "Ligate",
-        "assemble": "Assemble",
-        "gibson": "Assemble",
-        "goldengate": "Assemble",
-        "blunt": "Blunt",
+        "gibson": "Gibson",
+        "goldengate": "GoldenGate",
         "transform": "Transform"
     };
 
@@ -220,41 +231,44 @@ function parseCF(...blobs) {
         if (normalizedOp) {
             let step = { operation: normalizedOp };
 
-            if (keyword === "gibson" || keyword === "goldengate") {
-                step.output = tokens[tokens.length - 1];
-                step.dnas = tokens.slice(1, tokens.length - (keyword === "goldengate" ? 2 : 1));
-                step.enzyme = keyword === "gibson" ? "gibson" : tokens[tokens.length - 2];
-            } else {
-                switch (keyword) {
-                    case "pcr":
-                        step.output = tokens[4];
-                        step.forward_oligo = tokens[1];
-                        step.reverse_oligo = tokens[2];
-                        step.template = tokens[3];
-                        break;
-                    case "assemble":
-                        step.output = tokens[tokens.length - 1];
-                        step.enzyme = tokens[tokens.length - 2];
-                        step.dnas = tokens.slice(1, tokens.length - 2);
-                        break;
-                    case "ligate":
-                        step.output = tokens[tokens.length - 1];
-                        step.dnas = tokens.slice(1, tokens.length - 1);
-                        break;
-                    case "digest":
-                        step.output = tokens[4];
-                        step.dna = tokens[1];
-                        step.enzymes = tokens[2];
-                        step.fragselect = parseInt(tokens[3], 10);
-                        break;
-                    case "transform":
-                        step.output = tokens[4];
-                        step.dna = tokens[1];
-                        step.strain = tokens[2];
-                        step.antibiotics = tokens[3];
-                        step.temperature = parseFloat(tokens[5]);
-                        break;
-                }
+            switch (normalizedOp) {
+                case "PCR":
+                    step.output = tokens[4];
+                    step.forward_oligo = tokens[1];
+                    step.reverse_oligo = tokens[2];
+                    step.template = tokens[3];
+                    break;
+
+                case "Gibson":
+                    step.output = tokens[tokens.length - 1];
+                    step.dnas = tokens.slice(1, tokens.length - 1);
+                    break;
+                    
+                case "GoldenGate":
+                    step.output = tokens[tokens.length - 1];
+                    step.dnas = tokens.slice(1, tokens.length - 2);
+                    step.enzyme = tokens[tokens.length - 2];
+                    break;
+
+                case "Ligate":
+                    step.output = tokens[tokens.length - 1];
+                    step.dnas = tokens.slice(1, tokens.length - 1);
+                    break;
+
+                case "Digest":
+                    step.output = tokens[4];
+                    step.dna = tokens[1];
+                    step.enzymes = tokens[2];
+                    step.fragselect = parseInt(tokens[3], 10);
+                    break;
+
+                case "Transform":
+                    step.output = tokens[4];
+                    step.dna = tokens[1];
+                    step.strain = tokens[2];
+                    step.antibiotics = tokens[3];
+                    step.temperature = parseFloat(tokens[5]);
+                    break;
             }
 
             steps.push(step);
@@ -267,8 +281,22 @@ function parseCF(...blobs) {
                 name = tokens[0];
                 sequence = tokens.slice(1).join('');
             }
+
             if (sequenceDataRegex.test(sequence)) {
-                sequences[name] = sequence.toUpperCase();
+                switch (keyword) {
+                    case "plasmid":
+                        sequences[name] = plasmid(sequence.toUpperCase());
+                        break;
+                    case "oligo":
+                        sequences[name] = oligo(sequence.toUpperCase());
+                        break;
+                    case "dsdna":
+                        sequences[name] = dsDNA(sequence.toUpperCase());
+                        break;
+                    default:
+                        sequences[name] = oligo(sequence.toUpperCase()); // default to oligo
+                        break;
+                }
             }
         }
     }
@@ -294,35 +322,30 @@ function parseCF(...blobs) {
  *
  * @returns {string} finalProduct - The predicted PCR product.
  */
-function PCR(forwardSeq, reverseSeq, templateSeq) {
-  try {
-    forwardSeq = resolveToSeq(forwardSeq);
-  } catch(err) {
-    throw new Error('PCR unable to parse forward primer ' + forwardSeq);
+function PCR(forwardOligo, reverseOligo, template) {
+  // Validate that forward and reverse are single-stranded
+  if (forwardOligo.isDoubleStranded) {
+    throw new Error('Forward oligo must be single-stranded');
   }
-  try {
-    reverseSeq = resolveToSeq(reverseSeq);
-  } catch(err) {
-    throw new Error('PCR unable to parse reverse primer ' + reverseSeq);
+  if (reverseOligo.isDoubleStranded) {
+    throw new Error('Reverse oligo must be single-stranded');
   }
-  try {
-    templateSeq = resolveToSeq(templateSeq);
-  } catch(err) {
-    throw new Error('PCR unable to parse template sequence ' + templateSeq);
-  }
+
+  // Pull sequences from Polynucleotides
+  const forwardSeq = forwardOligo.sequence;
+  const reverseSeq = reverseOligo.sequence;
+  let templateSeq = template.sequence;
 
   // Find index of 18 bp match on 3' end of forward oligo and template
   var foranneal = forwardSeq.slice(-18);
-  // console.log(foranneal);
-
   var forwardMatchIndex = templateSeq.indexOf(foranneal);
-  // console.log(forwardMatchIndex);
-  if(forwardMatchIndex === -1) {
-    templateSeq = revcomp(templateSeq);
-    forwardMatchIndex = templateSeq.indexOf(foranneal);
-    if(forwardMatchIndex === -1) {
-      throw new Error("Forward oligo does not exactly anneal to the template")
+  if (forwardMatchIndex === -1) {
+    const rcTemplate = revcomp(templateSeq);
+    forwardMatchIndex = rcTemplate.indexOf(foranneal);
+    if (forwardMatchIndex === -1) {
+      throw new Error("Forward oligo does not exactly anneal to the template.\nForward oligo (3' 18bp): " + displaySeq(foranneal) + "\nTemplate: " + displaySeq(templateSeq));
     }
+    templateSeq = rcTemplate;
   }
 
   // Rotate template sequence to begin with annealing region of forward oligo
@@ -334,15 +357,15 @@ function PCR(forwardSeq, reverseSeq, templateSeq) {
   // Find index of 18 bp match on 3' end of reverse complement and rotated template
   var revanneal = reverseComp.slice(0,18);
   var reverseMatchIndex = rotatedTemplate.indexOf(revanneal);
-  if(reverseMatchIndex === -1) {
-    throw new Error("Reverse oligo does not exactly anneal to the template")
+  if (reverseMatchIndex === -1) {
+    throw new Error("Reverse oligo does not exactly anneal to the template.\nReverse oligo (3' 18bp): " + displaySeq(revanneal) + "\nRotated template: " + displaySeq(rotatedTemplate));
   }
 
-  // Concatenate entire forward oligo, region between annealing regions on rotated template, and entire 
-  // reverse complement of reverse oligo to obtain final PCR product
+  // Concatenate entire forward oligo, region between annealing regions on rotated template, and entire reverse complement of reverse oligo
   var finalProduct = forwardSeq + rotatedTemplate.slice(18, reverseMatchIndex) + reverseComp;
 
-  return finalProduct;
+  // Wrap result as a double-stranded DNA polynucleotide
+  return dsDNA(finalProduct);
 }
 
 /**
@@ -374,267 +397,409 @@ for (const enzName in simRestrictionEnzymes) {
   enzyme.isFivePrime = enzyme.cut5 < enzyme.cut3;
 }
 
-/**
- * Assembles a set of DNA sequences using the Gibson or Golden Gate Assembly method
- *
- * @param {Array<string|Array<string>>} dnaBlobs An array of DNA sequences or sequence fragments to be assembled
- * @param {string} enzyme The restriction enzyme used to cut the DNA sequences, or 'gibson' for Gibson assembly
- * @return {string} The final assembled DNA sequence
- *
- * Approach:
- * 1. Verify that the input enzyme is a valid restriction enzyme
- * 2. Use the restriction enzyme to cut the DNA sequences and collect the digestion fragments
- * 3. Sort the digestion fragments based on their sticky end compatibility
- * 4. Check that each sticky end has a matching sticky end in the next fragment
- * 5. Concatenate the cut fragments to form the final assembled DNA sequence
- */
-function assemble(...dnaBlobs) {
-  // dnaBlobs = ["CCATAGGTCTCAGCTTCTACTAGAGCATAAGCGTGGCTTAACAATTCCCTACTAGAGACCTTGTC","CCATAGGTCTCATACTATTAAGGTGGAGAAAGGTCAGGCCGGCTTAGAGACCTTGTC","BsaI"];
-  const enzyme = dnaBlobs.pop();
-
-  // Flatten the array of dnaBlobs into a single array of cleaned up DNA sequences
-  const dnaSequences = dnaBlobs.flat().map(sequence => {
-    if (Array.isArray(sequence)) {
-      // Clean up each sequence in the array
-      return sequence.map(subsequence => resolveToSeq(subsequence));
-    } else {
-      // Clean up the single sequence
-      return resolveToSeq(sequence);
+// Helper for Golden Gate assembly: sort and validate fragments by sticky ends
+function sortAndValidateGoldenGateFragments(digestionFragments) {
+  // Sort the digestion fragments based on the sticky ends
+  digestionFragments.sort((a, b) => {
+    if (a.stickyEnd5 === b.stickyEnd3) {
+      return 0;
     }
-  }).flat();
+    else if (a.stickyEnd5 < b.stickyEnd3) {
+      return -1;
+    }
+    else {
+      return 1;
+    }
+  });
 
-  // check if the enzyme is in the simRestrictionEnzymes object, or relay to Gibson
-  if (!simRestrictionEnzymes.hasOwnProperty(enzyme)) {
-    return gibson(dnaSequences);
+  // Validate that all sticky ends are non-palindromic
+  digestionFragments.forEach(fragment => {
+    if (isPalindromic(fragment.stickyEnd5) || isPalindromic(fragment.stickyEnd3)) {
+      throw new Error(`Palindromic sticky ends found in fragment ${fragment.fragment}`);
+    }
+  });
+
+  // Check if there is a way to assemble the fragments without including all the fragments
+  if (digestionFragments.length > 1) {
+    const stickyEndCounts = {};
+
+    digestionFragments.forEach(fragment => {
+      if (!stickyEndCounts.hasOwnProperty(fragment.stickyEnd5)) {
+        stickyEndCounts[fragment.stickyEnd5] = { count5: 0, count3: 0 };
+      }
+      if (!stickyEndCounts.hasOwnProperty(fragment.stickyEnd3)) {
+        stickyEndCounts[fragment.stickyEnd3] = { count5: 0, count3: 0 };
+      }
+      stickyEndCounts[fragment.stickyEnd5].count5++;
+      stickyEndCounts[fragment.stickyEnd3].count3++;
+    });
+
+    for (const stickyEnd in stickyEndCounts) {
+      if (stickyEndCounts[stickyEnd].count5 > 1 || stickyEndCounts[stickyEnd].count3 > 1) {
+        throw new Error('Some fragments have the same sticky ends, which can lead to incorrect assemblies');
+      }
+    }
   }
 
-	// Initialize variables to store the restriction enzyme sites and the assembly product
-	var assemblyProduct = "";
-	var digestionFragments = [];
+  // Validate that the sticky ends match between fragments
+  for (var i = 0; i < digestionFragments.length - 1; i++) {
+    if (digestionFragments[i].stickyEnd3 !== digestionFragments[i + 1].stickyEnd5) {
+      throw new Error(`Error: Sticky ends do not match between fragments 
+        ${digestionFragments[i].fragment} and ${digestionFragments[i + 1].fragment}`);
+    }
+  }
+  if (digestionFragments[0].stickyEnd5 !== digestionFragments[digestionFragments.length - 1].stickyEnd3) {
+    throw new Error(`Error: Sticky ends do not match between first and last fragments 
+      ${digestionFragments[0].fragment} and ${digestionFragments[digestionFragments.length - 1].fragment}`);
+  }
+}
 
-	// Get the restriction enzyme details
-	var enzymeDetails = simRestrictionEnzymes[enzyme];
-	var restrictionSequence = enzymeDetails.recognitionSequence;
-	var revRestrictionSequence = enzymeDetails.recognitionRC;
-  var cut5 = enzymeDetails.cut5;
-  var cut3 = enzymeDetails.cut3;
+/**
+ * Simulates ligation of Polynucleotides by matching sticky ends.
+ * 
+ * If there is one fragment, attempts to circularize it by joining its own ends.
+ * If there are multiple fragments, iteratively ligates compatible ends
+ * and attempts to circularize at the end.
+ *
+ * @param {Array<Polynucleotide>} dnaPolys - Array of Polynucleotide fragments.
+ * @returns {Polynucleotide} - The ligated Polynucleotide, either circularized or linear.
+ * @throws {Error} - If fragments cannot ligate properly or not all are incorporated.
+ */
+function ligate(dnaPolys) {
+  // If only one fragment, try to circularize
+  if (dnaPolys.length === 1) {
+    const poly = dnaPolys[0];
+    const circularized = ligateEnds(poly);
+    if (!circularized) {
+      throw new Error("Single fragment does not circularize");
+    }
+    return circularized;
+  }
 
-	// Loop through the DNA sequences and collect digestion fragments
-  dnaSequences.forEach(sequence => {
-    sequence = resolveToSeq(sequence);
+  // Build a map from 5' sticky end to polynucleotide (and its reverse complement)
+  const fiveToPoly = {};
+  for (const poly of dnaPolys) {
+    fiveToPoly[poly.ext5] = poly;
+    // Also add reverse-complement (swap ends)
+    const rcPoly = new Polynucleotide(
+      poly.sequence,
+      poly.ext3, 
+      poly.ext5,
+      poly.isDoubleStranded,
+      poly.isRNA,
+      poly.isCircular,
+      poly.mod_ext3,
+      poly.mod_ext5
+    );
+    fiveToPoly[rcPoly.ext5] = rcPoly;
+  }
 
-    // Find the restriction enzyme sites in the current sequence
+  // Find a pair that can be ligated
+  let lefty = null;
+  for (const poly of dnaPolys) {
+    const righty = fiveToPoly[poly.ext3];
+    if (righty && join(poly, righty)) {
+      lefty = poly;
+      break;
+    }
+  }
+  if (!lefty) {
+    throw new Error("No valid ligation junctions found");
+  }
+
+  // Iteratively join fragments
+  while (true) {
+    const circularized = ligateEnds(lefty);
+    if (circularized) {
+      lefty = circularized;
+      break;
+    }
+    const righty = fiveToPoly[lefty.ext3];
+    if (!righty) {
+      break;
+    }
+    const product = join(lefty, righty);
+    if (!product) {
+      break;
+    }
+    lefty = product;
+    // Remove righty from fiveToPoly so we don't re-use it
+    delete fiveToPoly[righty.ext5];
+  }
+
+  // Check that all input fragments are incorporated
+  for (const poly of dnaPolys) {
+    if (!lefty.sequence.includes(poly.sequence)) {
+      throw new Error("Not all input fragments incorporated into ligation product");
+    }
+  }
+  return lefty;
+}
+
+// Helper to join two Polynucleotides if their ends are compatible and have proper modifications
+function join(lefty, righty) {
+  // At least one end must be phosphorylated
+  const hasPhosphate = (lefty.mod_ext3 === 'phos5') || (righty.mod_ext5 === 'phos5');
+  if (!hasPhosphate) return null;
+  // Both ends must be valid
+  const validMods = ['phos5', 'hydroxyl'];
+  if (!validMods.includes(lefty.mod_ext3) || !validMods.includes(righty.mod_ext5)) return null;
+  // Join the sequences, removing any dashes in sticky ends
+  const newseq = lefty.sequence + lefty.ext3.replace("-", "") + righty.sequence;
+  return new Polynucleotide(
+    newseq,
+    lefty.ext5,
+    righty.ext3,
+    true,
+    false,
+    false,
+    lefty.mod_ext5,
+    righty.mod_ext3
+  );
+}
+
+// Helper to circularize a Polynucleotide if its ends are compatible and have proper modifications
+function ligateEnds(poly) {
+  // At least one end must be phosphorylated
+  const hasPhosphate = (poly.mod_ext3 === 'phos5') || (poly.mod_ext5 === 'phos5');
+  if (!hasPhosphate) return null;
+  // Both ends must be valid
+  const validMods = ['phos5', 'hydroxyl'];
+  if (!validMods.includes(poly.mod_ext5) || !validMods.includes(poly.mod_ext3)) return null;
+  // Ends must match (ignoring dashes, case-insensitive)
+  if (poly.ext5.toUpperCase().replace("-", "") !== poly.ext3.toUpperCase().replace("-", "")) return null;
+  let sticky = poly.ext5.replace("-", "");
+  return new Polynucleotide(
+    sticky + poly.sequence,
+    "",
+    "",
+    true,
+    false,
+    true,
+    'circular',
+    'circular'
+  );
+}
+
+/**
+ * Assembles a set of Polynucleotide objects using the Golden Gate Assembly method.
+ * @param {Array<Polynucleotide>} polynucleotides - Array of double-stranded Polynucleotide objects to assemble.
+ * @param {string} enzyme - Restriction enzyme name.
+ * @returns {Polynucleotide} The assembled Polynucleotide.
+ */
+function goldengate(polynucleotides, enzyme) {
+  if (!simRestrictionEnzymes.hasOwnProperty(enzyme)) {
+    throw new Error(`Enzyme ${enzyme} not found for Golden Gate assembly`);
+  }
+  // Validate input is array of Polynucleotides
+  if (!Array.isArray(polynucleotides)) {
+    throw new Error("Input to goldengate must be an array of Polynucleotide objects");
+  }
+  // Validate all are double-stranded Polynucleotides
+  polynucleotides.forEach((poly, idx) => {
+    // console.log(poly)
+    if (!(poly instanceof Polynucleotide)) {
+      throw new Error(`Input at index ${idx} is not a Polynucleotide`);
+    }
+    if (!poly.isDoubleStranded) {
+      throw new Error(`Polynucleotide at index ${idx} is not double-stranded`);
+    }
+  });
+
+  // Get enzyme details
+  const enzymeDetails = simRestrictionEnzymes[enzyme];
+  const restrictionSequence = enzymeDetails.recognitionSequence;
+  const revRestrictionSequence = enzymeDetails.recognitionRC;
+  const cut5 = enzymeDetails.cut5;
+  const cut3 = enzymeDetails.cut3;
+
+  // Collect digestion fragments
+  const digestionFragments = [];
+  polynucleotides.forEach((poly, idx) => {
+    const sequence = poly.sequence;
+    // Find enzyme sites
     const enzymeSites = sequence.split(restrictionSequence).length - 1;
     const revEnzymeSites = sequence.split(revRestrictionSequence).length - 1;
-
-    // Declare enzymeSite and revEnzymeSite
     const enzymeSite = sequence.indexOf(restrictionSequence);
     const revEnzymeSite = sequence.indexOf(revRestrictionSequence);
-
-    // If the enzyme is not found in the sequence, throw an error
     if (enzymeSites === 0) {
-      throw new Error(`Error: Enzyme site ${restrictionSequence} not found in sequence ${sequence}`);
+      throw new Error(`Error: Enzyme site ${restrictionSequence} not found in sequence at index ${idx}: ${displaySeq(sequence)}`);
     }
     if (revEnzymeSites === 0) {
-      throw new Error(`Error: Reverse Enzyme site ${revRestrictionSequence} not found in sequence ${sequence}`);
+      throw new Error(`Error: Reverse Enzyme site ${revRestrictionSequence} not found in sequence at index ${idx}: ${displaySeq(sequence)}`);
     }
-
-    // If there is more than one forward or reverse site in the sequence, throw an error
     if (enzymeSites > 1) {
-      throw new Error(`Error: More than one forward enzyme site ${restrictionSequence} found in sequence ${sequence}`);
+      throw new Error(`Error: More than one forward enzyme site ${restrictionSequence} found in sequence at index ${idx}: ${displaySeq(sequence)}`);
     }
     if (revEnzymeSites > 1) {
-      throw new Error(`Error: More than one reverse enzyme site ${revRestrictionSequence} found in sequence ${sequence}`);
+      throw new Error(`Error: More than one reverse enzyme site ${revRestrictionSequence} found in sequence at index ${idx}: ${displaySeq(sequence)}`);
     }
-
-    // Confirm that the forward site comes before the reverse complement site
     if (revEnzymeSite < enzymeSite) {
-      throw new Error(`Error: Reverse enzyme site found before forward enzyme site in sequence ${sequence}`);
+      throw new Error(`Error: Reverse enzyme site found before forward enzyme site in sequence at index ${idx}: ${displaySeq(sequence)}`);
     }
-
     // Extract the cut fragment, stickyEnd5 and stickyEnd3
     const cutFragment = sequence.substring(enzymeSite + restrictionSequence.length + cut3, revEnzymeSite - cut3);
     const stickyEnd5 = sequence.substring(enzymeSite + restrictionSequence.length + cut5, enzymeSite + restrictionSequence.length + cut3);
     const stickyEnd3 = sequence.substring(revEnzymeSite - cut3, revEnzymeSite - cut5);
-
     digestionFragments.push({
       fragment: cutFragment,
       stickyEnd5: stickyEnd5,
-      stickyEnd3: stickyEnd3
+      stickyEnd3: stickyEnd3,
+      ext5: poly.ext5,
+      ext3: poly.ext3,
+      mod_ext5: poly.mod_ext5,
+      mod_ext3: poly.mod_ext3
     });
   });
 
+  // Sort and validate sticky ends
+  sortAndValidateGoldenGateFragments(digestionFragments);
 
-    // Sort the digestion fragments based on the sticky ends
-    digestionFragments.sort((a, b) => {
-      if (a.stickyEnd5 === b.stickyEnd3) {
-          return 0;
-      }
-      else if (a.stickyEnd5 < b.stickyEnd3) {
-          return -1;
-      }
-      else {
-          return 1;
-      }
-    });
+  // Assemble the final sequence and determine sticky ends/mods
+  let finalSeq = "";
+  for (let i = 0; i < digestionFragments.length; i++) {
+    finalSeq += digestionFragments[i].stickyEnd5;
+    finalSeq += digestionFragments[i].fragment;
+  }
 
-    //Validate that all sticky ends are non-palindromic
-    digestionFragments.forEach(fragment => {
-      if (isPalindromic(fragment.stickyEnd5) || isPalindromic(fragment.stickyEnd3)) {
-        throw new Error(`Palindromic sticky ends found in fragment ${fragment.fragment}`);
-      }
-    });
+  // For ends and modifications: take from first and last fragments
+  const ext5 = digestionFragments[0].ext5;
+  const ext3 = digestionFragments[digestionFragments.length - 1].ext3;
+  const mod_ext5 = digestionFragments[0].mod_ext5;
+  const mod_ext3 = digestionFragments[digestionFragments.length - 1].mod_ext3;
 
-    // Check if there is a way to assemble the fragments without including all the fragments
-    if (digestionFragments.length > 1) {
-      const stickyEndCounts = {};
+  // Determine isCircular based on sticky ends matching
+  const isCircular = (
+    digestionFragments.length > 1 &&
+    digestionFragments[0].stickyEnd5 === digestionFragments[digestionFragments.length - 1].stickyEnd3
+  );
 
-      digestionFragments.forEach(fragment => {
-        if (!stickyEndCounts.hasOwnProperty(fragment.stickyEnd5)) {
-          stickyEndCounts[fragment.stickyEnd5] = { count5: 0, count3: 0 };
-        }
-        if (!stickyEndCounts.hasOwnProperty(fragment.stickyEnd3)) {
-          stickyEndCounts[fragment.stickyEnd3] = { count5: 0, count3: 0 };
-        }
-        stickyEndCounts[fragment.stickyEnd5].count5++;
-        stickyEndCounts[fragment.stickyEnd3].count3++;
-      });
-
-      for (const stickyEnd in stickyEndCounts) {
-        if (stickyEndCounts[stickyEnd].count5 > 1 || stickyEndCounts[stickyEnd].count3 > 1) {
-          throw new Error('Some fragments have the same sticky ends, which can lead to incorrect assemblies');
-        }
-      }
-    }
-
-
-    // Validate that the sticky ends match between fragments
-    for (var i = 0; i < digestionFragments.length - 1; i++) {
-        if (digestionFragments[i].stickyEnd3 !== digestionFragments[i + 1].stickyEnd5) {
-            throw new Error(`Error: Sticky ends do not match between fragments 
-              ${digestionFragments[i].fragment} and ${digestionFragments[i + 1].fragment}`);
-        }
-    }
-    if (digestionFragments[0].stickyEnd5 !== digestionFragments[digestionFragments.length - 1].stickyEnd3) {
-        throw new Error(`Error: Sticky ends do not match between first and last fragments 
-          ${digestionFragments[0].fragment} and ${digestionFragments[digestionFragments.length - 1].fragment}`);
-    }
-
-    //Assemble the final sequence and return
-    var finalSeq = "";
-    for (var i = 0; i < digestionFragments.length; i++) {
-      finalSeq+=digestionFragments[i].stickyEnd5;
-      finalSeq+=digestionFragments[i].fragment;
-    }
-    return finalSeq;
-	}
+  // Return as Polynucleotide
+  return polynucleotide(
+    finalSeq,
+    ext5,
+    ext3,
+    true,
+    false,
+    isCircular,
+    mod_ext5,
+    mod_ext3
+  );
+}
 
 /**
- * Assembles DNA sequences using the Gibson assembly method.
+ * Assembles DNA Polynucleotide objects using the Gibson assembly method.
  * It is also the default algorithm for 'assemble' function.
  * It is also appropriate for SOEing and yeast assembly predictions.
  *
- * @param {Array} seqs - an array of DNA sequences to be assembled, supplied as strings.
+ * @param {Array<Polynucleotide>} polynucleotides - Array of double-stranded, linear Polynucleotide objects to be assembled.
  * @param {boolean} check_circular - whether to check if the assembled product is circular. If set to `false`,
  *                                   the function will not check if the product is circular and will return a linear
  *                                   product. Defaults to `true`.
  *
- * @returns {string} - the assembled DNA sequence.
+ * @returns {Polynucleotide} - the assembled Polynucleotide object.
  *
- * @throws {Error} - if the input is not a non-empty array of DNA sequences, or if the assembly does not resolve to
+ * @throws {Error} - if the input is not a non-empty array of Polynucleotide objects, or if the assembly does not resolve to
  *                   a single product, or if the products do not assemble correctly, or if the assembled product is
  *                   not circular and `check_circular` is set to `true`.
  */
-const HOMOLOGY_LENGTH = 20; //20 bp homology arms required
-function gibson(seqs, check_circular) {
-  // Ensure seqs is always treated as an array
-  if (!Array.isArray(seqs)) {
-    seqs = [seqs];
+function gibson(polynucleotides, check_circular = true) {
+  console.log("polynucleotide inputs");
+
+  console.log(polynucleotides);
+  if (!Array.isArray(polynucleotides)) {
+    polynucleotides = [polynucleotides];
   }
 
-  if (seqs.length === 0) {
-    throw new Error("Invalid input: expected non-empty array of DNA sequences");
+  if (polynucleotides.length === 0) {
+    throw new Error("Expected non-empty array of Polynucleotide objects");
   }
 
-  //Do sequence cleanup and checks
-  for(var i in seqs ) {
-    seqs[i] = resolveToSeq(seqs[i]);
+  for (const poly of polynucleotides) {
+    if (!(poly instanceof Polynucleotide)) {
+      throw new Error("All inputs must be Polynucleotide objects");
+    }
+    if (!poly.isDoubleStranded) {
+      throw new Error("All Polynucleotides must be double-stranded");
+    }
+    if (poly.isCircular) {
+      throw new Error("All Polynucleotides must be linear for Gibson assembly");
+    }
   }
 
-  //Default to requiring a circular product
-  var checkcirc = true;
-  if(check_circular === false) {
-    checkcirc = false;
-  }
+  const HOMOLOGY_LENGTH = 20;
 
-  //Do iterations of assembly, one pair of fragments at a time
-  var startList = [...seqs];
-  var endList = [];
-  var isCircular = false;
+  let assemblyFragments = [...polynucleotides];
 
-  //Iterate until it converges on a single sequence
-  while(startList.length > 1) {
-    //Compare the sequences for homology pairwise
-    for (const seq1 of startList) {
-      const threePrime = seq1.substring(seq1.length - HOMOLOGY_LENGTH);
-      for (const seq2 of startList) {
-        if(seq2 === seq1) {
-          continue;
-        }
-        var startIndex = seq2.indexOf(threePrime);
-        if(startIndex === -1) {
-          continue;
-        }
+  while (assemblyFragments.length > 1) {
+    const currFrag = assemblyFragments.shift();
+    const currSeq = currFrag.sequence;
+    const currLen = currSeq.length;
+    const homologyRegion = currSeq.slice(currLen - HOMOLOGY_LENGTH);
 
-        //It found a match; add the extended product to the list for the next cycle
-        var newseq = seq1 + seq2.substring(startIndex + threePrime.length);
-        endList.push(newseq);
+    let matchedFrag = null;
+    let matchedHomologousRegionEndIndex = 0;
+
+    for (let i = 0; i < assemblyFragments.length; i++) {
+      const tempFrag = assemblyFragments[i];
+      const tempSeq = tempFrag.sequence;
+
+      if (tempSeq.includes(homologyRegion)) {
+        matchedFrag = tempFrag;
+        matchedHomologousRegionEndIndex = tempSeq.indexOf(homologyRegion) + HOMOLOGY_LENGTH;
+        assemblyFragments.splice(i, 1);
+        break;
+      } else if (revcomp(tempSeq).includes(homologyRegion)) {
+        const revTemp = revcomp(tempSeq);
+        matchedFrag = new Polynucleotide(revTemp, null, null, true, false, false);
+        matchedHomologousRegionEndIndex = revTemp.indexOf(homologyRegion) + HOMOLOGY_LENGTH;
+        assemblyFragments.splice(i, 1);
+        break;
       }
     }
 
-    //Reset the startList to be the sequences extended in previous cycle
-    //If they are the same length, it is a circular product
-    if(endList.length === startList.length) {
-      startList = endList.slice(0, -1);
-      endList = [];
-      isCircular = true;
+    if (!matchedFrag) {
+      throw new Error("The provided assembly fragments cannot be joined together because there are not enough homologous regions between them");
+    }
 
-    //If it were linear, or a later cycle, this would be the case
-    } else if(endList.length < startList.length) {
-      startList = endList;
-      endList = [];
+    if (!/^[ATCG]+$/i.test(homologyRegion)) {
+      throw new Error("The provided assembly contains degenerate base pairs, assembly failed.");
+    }
 
-    //If there are more seqs in endList than startList, then it is not converging
+    const currHomologousRegionStartIndex = currSeq.length - matchedHomologousRegionEndIndex;
+    const currHomologousRegion = currSeq.slice(currHomologousRegionStartIndex);
+    const matchedHomologousRegion = matchedFrag.sequence.slice(0, matchedHomologousRegionEndIndex);
+
+    if (currHomologousRegion !== matchedHomologousRegion) {
+      throw new Error("In a Gibson assembly step, the fragment ends do not match");
+    }
+
+    const currFragRegion = currSeq.slice(0, currHomologousRegionStartIndex);
+    const matchedFragRegion = matchedFrag.sequence;
+
+    const assembledProduct = new Polynucleotide(
+      currFragRegion + matchedFragRegion,
+      null, null, true, false, false
+    );
+    assemblyFragments.push(assembledProduct);
+  }
+
+  // Final check for circularization
+  const linearProduct = assemblyFragments[0];
+  const forwardStrand = linearProduct.sequence;
+  const lastHomology = forwardStrand.slice(-HOMOLOGY_LENGTH);
+  const firstIndex = forwardStrand.indexOf(lastHomology);
+
+  if (firstIndex === forwardStrand.length - HOMOLOGY_LENGTH || firstIndex < 0) {
+    if (check_circular) {
+      throw new Error("Assembly product cannot be re-circularized");
     } else {
-      throw new Error("Products do not assembly correctly, multiply assembly junctions present");
+      return dsDNA(forwardStrand);
     }
   }
 
-  if(startList.length != 1) {
-    throw new Error("Gibson assembly did not resolve to a single product");
-  }
-
-  var outseq = startList[0];
-
-  ///For the edge case of a single-sequence entry, require it be circular
-  if(seqs.length === 1) {
-    isCircular = true;
-  }
-
-  //If it was detected as circular earlier, recircularize with one last recombination
-  if(isCircular) {
-    const threePrime = outseq.substring(outseq.length - HOMOLOGY_LENGTH);
-    var startIndex = outseq.indexOf(threePrime);
-    outseq = outseq.substring(startIndex + HOMOLOGY_LENGTH);
-
-  //Otherwise, by default throw an error unless explicitly requested not to
-  } else {
-    if(checkcirc) {
-      throw new Error("Products do not assemble into a circular product.  If you are expecting a linear product, pass in check_circular = FALSE");
-    }
-  }
-
-  return outseq;
+  const circularSeq = forwardStrand.slice(firstIndex, forwardStrand.length - HOMOLOGY_LENGTH);
+  return plasmid(circularSeq);
 }
 
 /**
@@ -742,93 +907,91 @@ function cutOnce(polyjson, enz) {
 }
 
 /**
- * Performs a restriction digest to completion on a given DNA sequence using specified enzymes, and returns a specific fragment.
+ * Performs a restriction digest to completion on a given DNA Polynucleotide using specified enzymes, and returns a specific fragment.
  * @function
- * @param {string|Object} seq - A DNA sequence as a string or a Polynucleotide object. If a string is provided, it is assumed to be a linear double-stranded DNA, similar to a PCR product.
+ * @param {Polynucleotide} seq - A Polynucleotide object representing the DNA to digest.
  * @param {string} enzymes - A string containing the names of the restriction enzymes, separated by non-alphanumeric characters (e.g., 'EcoRI,BamHI').
- * @param {number} [fragselect] - The index of the desired fragment to be returned after digestion. The fragments are arranged left to right from the original sequence numbered 0 to n. If not provided or out of range, the function throws an error.
- * @returns {string} A JSON string representing the Polynucleotide object of the selected fragment or an array of Polynucleotide objects if fragselect is not specified or out of range.
- * @throws {Error} If the input sequence cannot be resolved to a Polynucleotide object or if any of the specified enzymes cannot be found.
+ * @param {number} fragselect - The index of the desired fragment to be returned after digestion. The fragments are arranged left to right from the original sequence numbered 0 to n.
+ * @returns {Polynucleotide} The Polynucleotide object of the selected fragment.
+ * @throws {Error} If the input is not a Polynucleotide object, enzymes are not found, or fragselect is invalid.
  */
 function digest(seq, enzymes, fragselect) {
-	// Add a check to confirm input is a Polynucleotide object
-	if (typeof seq.sequence !== 'string') {
-	  throw new Error('Input to digest must be a Polynucleotide object');
-	}
+  // Check input is a Polynucleotide object
+  if (typeof seq !== 'object' || typeof seq.sequence !== 'string') {
+    throw new Error('Input to digest must be a Polynucleotide object');
+  }
 
-	// Tokenize the enzymes list and confirm they are recognizable
-	const enzList = enzymes.split(/[^A-Za-z0-9]+/).filter(name => name.trim().length > 0);
-	for (var i = 0; i < enzList.length; i++) {
-	  const enzymeData = simRestrictionEnzymes[enzList[i]];
-	  if (!enzymeData) {
-	    throw new Error(`Enzyme "${enzList[i]}" not found.`);
-	  }
-	}
+  // Tokenize the enzymes list and confirm they are recognizable
+  const enzList = enzymes.split(/[^A-Za-z0-9]+/).filter(name => name.trim().length > 0);
+  for (let i = 0; i < enzList.length; i++) {
+    const enzymeData = simRestrictionEnzymes[enzList[i]];
+    if (!enzymeData) {
+      throw new Error(`Enzyme "${enzList[i]}" not found.`);
+    }
+  }
 
-	var fragsOut = [];
-	fragsOut.push(seq);
+  let fragsOut = [seq];
 
-	outer: while (true) {
-		// Copy over the fragments
-		const worklist = [...fragsOut];
-		fragsOut = [];
+  outer: while (true) {
+    const worklist = [...fragsOut];
+    fragsOut = [];
+    for (let i = 0; i < worklist.length; i++) {
+      let poly = worklist[i];
+      let foundCut = false;
+      for (let enz of enzList) {
+        const frags = cutOnce(poly, enz);
+        if (frags) {
+          fragsOut = [...fragsOut, ...frags];
+          foundCut = true;
+          continue outer;
+        }
+      }
+      if (!foundCut) {
+        fragsOut.push(poly);
+      }
+    }
+    break;
+  }
 
-		// Iterate over the worklist and enzymes and do one cut
-		for (var i = 0; i < worklist.length; i++) {
-			var polyjson = worklist[i];
-			var foundCut = false;
-
-			for (var enz of enzList) {
-				var frags = cutOnce(polyjson, enz);
-				if (frags) {
-					// Remove polynucleotide just cut and add the fragments
-					fragsOut = [...fragsOut, ...frags];
-					foundCut = true;
-					continue outer;
-				}
-			}
-
-			if (!foundCut) {
-				fragsOut.push(worklist[i]);
-			}
-		}
-
-		// If it gets here, it didn't find any cut site
-		break;
-	} // End outer
-
-	if (fragselect !== undefined && fragselect >= 0 && fragselect < fragsOut.length) {
-		if (seq.isCircular) {
-			let targetIndex = fragselect;
-
-			// Sort fragments by start position in the original sequence
-			fragsOut.sort((a, b) => {
-				const startPosA = seq.sequence.indexOf(a.sequence);
-				const startPosB = seq.sequence.indexOf(b.sequence);
-				return startPosA - startPosB;
-			});
-
-			// Handle circular case where the first fragment should actually be the last
-			if (seq.sequence.indexOf(fragsOut[0].sequence) !== 0) {
-				const firstFrag = fragsOut.shift();
-				fragsOut.push(firstFrag);
-				targetIndex = fragselect === 0 ? fragsOut.length - 1 : fragselect - 1;
-			}
-
-			return fragsOut[targetIndex];
-		} else {
-			return fragsOut[fragselect];
-		}
-	} else {
-		throw new Error("Invalid fragselect provided");
-	}
+  if (
+    typeof fragselect === "number" &&
+    fragselect >= 0 &&
+    fragselect < fragsOut.length
+  ) {
+    if (seq.isCircular) {
+      let targetIndex = fragselect;
+      // Sort fragments by start position in the original sequence
+      fragsOut.sort((a, b) => {
+        const startPosA = seq.sequence.indexOf(a.sequence);
+        const startPosB = seq.sequence.indexOf(b.sequence);
+        return startPosA - startPosB;
+      });
+      // Handle circular case where the first fragment should actually be the last
+      if (seq.sequence.indexOf(fragsOut[0].sequence) !== 0) {
+        const firstFrag = fragsOut.shift();
+        fragsOut.push(firstFrag);
+        targetIndex = fragselect === 0 ? fragsOut.length - 1 : fragselect - 1;
+      }
+      // Return a new plasmid Polynucleotide with the selected fragment's sequence
+      const newSeq = fragsOut[targetIndex].sequence;
+      return plasmid(newSeq);
+    } else {
+      // Linear case: return a dsDNA Polynucleotide with the selected fragment's sequence
+      const newSeq = fragsOut[fragselect].sequence;
+      return dsDNA(newSeq);
+    }
+  } else {
+    throw new Error(
+      "Invalid fragselect provided for sequence: " + displaySeq(seq.sequence)
+    );
+  }
 }
 
 /**
  * simCF - A function that simulates a series of molecular biology construction steps given a construction file object.
  *
  * @param {Object} cfData - A construction file object (with `steps` and `sequences`) returned from `parseCF`.
- * @returns {Array<Array<string>>} outputTable - A 2D string array containing the product names and their sequences.
+ * @returns {Array<Array<string>>} outputTable - A 2D array where each sub-array is [productName, productSequence], representing the name and full DNA sequence of each construction step result.
  */
 function simCF(cfData) {
     const steps = cfData.steps;
@@ -839,68 +1002,84 @@ function simCF(cfData) {
         return "Error: Sequence data is missing. Please include sequence data in the input JSON.";
     }
 
-    function lookupSequence(key) {
-        const foundProduct = products.find((product) => product.name === key);
-        if (foundProduct) {
-            return resolveToPoly(foundProduct.sequence);
-        }
+  function lookupSequence(key) {
+      const foundProduct = products.find((product) => product.name === key);
+      if (foundProduct) {
+          return foundProduct.sequence;
+      }
 
-        const foundSequence = sequences[key];
-        if (foundSequence) {
-            return resolveToPoly(foundSequence);
-        }
+      const foundSequence = sequences[key];
+      if (foundSequence) {
+          return foundSequence;
+      }
 
-        throw new Error(`Missing sequence for key: ${key}`);
-    }
+      throw new Error(`Missing sequence for key: ${key}`);
+  }
 
     for (let i = 0; i < steps.length; i++) {
         const step = steps[i];
 
         switch (step.operation) {
             case 'PCR': {
-                const forwardOligoSeq = lookupSequence(step.forward_oligo).sequence;
-                const reverseOligoSeq = lookupSequence(step.reverse_oligo).sequence;
-                const templateSeq = lookupSequence(step.template).sequence;
+                const forwardOligoSeq = lookupSequence(step.forward_oligo);
+                const reverseOligoSeq = lookupSequence(step.reverse_oligo);
+                const templateSeq = lookupSequence(step.template);
 
-                const productSeq = PCR(forwardOligoSeq, reverseOligoSeq, templateSeq);
-                const productPoly = resolveToPoly(productSeq);
+                const productPoly = PCR(forwardOligoSeq, reverseOligoSeq, templateSeq);
                 products.push({
                     name: step.output,
-                    sequence: productPoly.sequence
+                    sequence: productPoly
                 });
             }
             break;
 
-            case 'Assemble': {
-                const dnaSequences = step.dnas.map((dnaKey) => lookupSequence(dnaKey).sequence);
-                const productSeq = assemble(dnaSequences, step.enzyme);
-                const productPoly = resolveToPoly(productSeq);
+            case 'GoldenGate': {
+                const dnaSequences = step.dnas.map((dnaKey) => lookupSequence(dnaKey));
+                const productPoly = goldengate(dnaSequences, step.enzyme);
                 products.push({
                     name: step.output,
-                    sequence: productPoly.sequence
+                    sequence: productPoly
+                });
+            }
+            break;
+
+            case 'Gibson': {
+                const dnaSequences = step.dnas.map((dnaKey) => lookupSequence(dnaKey));
+                const productPoly = gibson(dnaSequences);
+                products.push({
+                    name: step.output,
+                    sequence: productPoly
                 });
             }
             break;
 
             case 'Digest': {
                 const dnaSeq = lookupSequence(step.dna);
-                const product = digest(dnaSeq, step.enzymes.join(','), step.fragselect);
+                const polyObj = digest(dnaSeq, step.enzymes.join(','), step.fragselect);
                 // Since digest now returns a real Polynucleotide object, use it directly
-                const polyObj = product;
                 products.push({
                     name: step.output,
-                    sequence: polyObj.sequence
+                    sequence: polyObj
                 });
             }
             break;
 
+            case 'Ligate': {
+                const dnaPolys = step.dnas.map((dnaKey) => lookupSequence(dnaKey));
+                const ligatedPoly = ligate(dnaPolys);
+                products.push({
+                    name: step.output,
+                    poly: ligatedPoly
+                });
+            }
+          break;
             case 'Transform': {
                 const dnaSeq = lookupSequence(step.dna);
                 // TODO: Add real transformation simulation logic here
                 // dnaSeq is already a Polynucleotide, so store its .sequence
                 products.push({
                     name: step.output,
-                    sequence: dnaSeq.sequence
+                    sequence: dnaSeq
                 });
             }
             break;
@@ -921,8 +1100,9 @@ export {
   parseCF,
   simCF,
   PCR,
-  assemble,
+  goldengate,
   gibson,
   cutOnce,
-  digest
+  digest,
+  ligate
 };

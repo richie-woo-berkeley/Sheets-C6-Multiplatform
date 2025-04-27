@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { removeSites, oneAAoneCodon } from './src/C6-Gene.js';
+import { removeSites, oneAAoneCodon } from '../src/C6-Gene.js';
 import { translate } from 'src/C6-Seq.js';
 
 describe('C6-Gene Utilities', () => {

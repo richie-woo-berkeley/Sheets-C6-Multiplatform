@@ -74,13 +74,20 @@ function cleanup(sequence) {
   * @customfunction
   */
   const _regexDNA = /^[ACTGactgMRWSYKVHDBNXmrwsykvhdbnx-]+$/;
-  function resolveToSeq(seq) {
-    seq = seq.toString();
-    if (_regexDNA.test(seq)) {
-      return seq.toUpperCase();
-    }
   
-    throw new Error("Unrecognizable as sequence: " + seq);
+  function resolveToSeq(seq) {
+    // If seq is already a Polynucleotide, extract the sequence
+    if (seq instanceof Polynucleotide) {
+      return seq.sequence;  // Return the sequence from the Polynucleotide object
+    }
+    
+    seq = seq.toString();  // Ensure it's a string
+  
+    if (_regexDNA.test(seq)) {
+      return seq.toUpperCase();  // Return the sequence in uppercase if it's valid
+    }
+    
+    throw new Error("Unrecognizable as sequence: " + seq);  // If not a valid DNA sequence
   }
   
   /**
@@ -116,6 +123,115 @@ function cleanup(sequence) {
   }
   
   /**
+ * Compares two Polynucleotide objects for equivalence.
+ * Handles linear vs circular cases, reverse complement cases, etc.
+ *
+ * @param {Polynucleotide} polyA 
+ * @param {Polynucleotide} polyB 
+ * @returns {boolean} true if equivalent, false otherwise
+ */
+function comparePolynucleotides(polyA, polyB) {
+  if (!(polyA instanceof Polynucleotide) || !(polyB instanceof Polynucleotide)) {
+    throw new Error("Both inputs must be Polynucleotide objects.");
+  }
+
+  if(polyA.isCircular != polyB.isCircular) {
+    return false;
+  }
+
+  if(polyA.isRNA != polyB.isRNA) {
+    return false;
+  }
+
+  if(polyA.isDoubleStranded != polyB.isDoubleStranded) {
+    return false;
+  }
+
+  //If polyA is circular, see if one contains the other
+  if(polyA.isCircular) {
+    const polyAseq = polyA.sequence.toLowerCase();
+    let polyBseq = polyB.sequence.toLowerCase();
+    const doubleAseq = polyAseq + polyAseq;
+    if(doubleAseq.indexOf(polyBseq) === -1) {
+      polyB = polyrevcomp(polyB);
+      polyBseq = polyB.sequence.toLowerCase();
+      if(doubleAseq.indexOf(polyBseq) === -1) {
+        return false
+      }
+    }
+
+    //If gets this far, done with inspection of circular dnas
+    return true;
+  }
+
+  //Only linear ones remain
+  const polyAseq = polyA.sequence.toLowerCase();
+  let polyBseq = polyB.sequence.toLowerCase();
+
+  //Check the sequence and reorient if needed
+  if(polyAseq !== polyBseq) {
+      polyB = polyrevcomp(polyB);
+      polyBseq = polyB.sequence.toLowerCase();
+      if(polyAseq !== polyBseq) {
+        return false;
+      }
+  }
+
+  //Check the extensions
+  if(polyA.ext5 !== polyB.ext5) {
+    return false;
+  }
+
+  if(polyA.ext3 !== polyB.ext3) {
+    return false;
+  }
+
+  if(polyA.mod_ext5 !== polyB.mod_ext5) {
+    return false;
+  }
+
+  if(polyA.mod_ext3 !== polyB.mod_ext3) {
+    return false;
+  }
+
+  //Guantlet complete for a linear DNA
+  return true;
+}
+
+/**
+ * Reverse complements a Polynucleotide object, reversing its sequence and swapping extensions/modifications.
+ *
+ * @param {Polynucleotide} frag - The Polynucleotide to reverse complement.
+ * @returns {Polynucleotide} - The reverse complemented Polynucleotide.
+ */
+function polyrevcomp(frag) {
+  const revseq = revcomp(frag.sequence);
+
+  const revExt = (ext) => {
+    if (!ext) return "";
+    if (ext.startsWith("-")) {
+      return "-" + revcomp(ext.slice(1));
+    } else {
+      return revcomp(ext);
+    }
+  };
+
+  const new5 = revExt(frag.ext3);
+  const new3 = revExt(frag.ext5);
+
+  return new Polynucleotide(
+    revseq,
+    new5,
+    new3,
+    frag.isDoubleStranded,
+    frag.isRNA,
+    frag.isCircular,
+    frag.mod_ext3,
+    frag.mod_ext5
+  );
+}
+
+  /**
   Creates a new polynucleotide (DNA or RNA) object as JSON
   @param {string} sequence - The sequence of the polynucleotide.
   @param {string} ext5 - The 5' extension of the current coding strand.
@@ -132,7 +248,7 @@ function cleanup(sequence) {
   */
   function polynucleotide(sequence, ext5, ext3, isDoubleStranded, isRNA, isCircular, mod_ext5, mod_ext3) {
     var out = new Polynucleotide(sequence, ext5, ext3, isDoubleStranded, isRNA, isCircular, mod_ext5, mod_ext3);;
-    return JSON.stringify(out);
+    return out;
   }
   
   /**
@@ -147,8 +263,7 @@ function cleanup(sequence) {
   * @customfunction
   */
   function dsDNA(sequence) {
-    var out = new Polynucleotide(sequence, "", "", true, false, false, "hydroxyl", "hydroxyl");
-    return JSON.stringify(out);
+    return new Polynucleotide(sequence, "", "", true, false, false, "hydroxyl", "hydroxyl");
   }
   
   /**
@@ -161,8 +276,7 @@ function cleanup(sequence) {
   * "isRNA":false,"isCircular":false,"mod_ext5":null,"
   */
   function oligo(sequence) {
-    var out = new Polynucleotide(sequence, null, null, false, false, false, "hydroxyl", null); 
-    return JSON.stringify(out);
+    return new Polynucleotide(sequence, null, null, false, false, false, "hydroxyl", null);
   }
   
   /**
@@ -174,8 +288,7 @@ function cleanup(sequence) {
   console.log(plasmid); // Output: '{"sequence":"AGCTAGCT","ext5":null,"ext3":null,"isDoubleStranded":true,"isRNA":false,"isCircular":true,"mod_ext5":null,"mod_ext3":null}'
   */
   function plasmid(sequence) {
-    var out = new Polynucleotide(sequence, "", "", true, false, true, null, null); 
-    return JSON.stringify(out);
+    return new Polynucleotide(sequence, "", "", true, false, true, null, null);
   }
   
   /**
@@ -410,6 +523,8 @@ export {
   dsDNA,
   oligo,
   plasmid,
+  comparePolynucleotides,
+  polyrevcomp,
   isPalindromic,
   revcomp,
   gccontent,

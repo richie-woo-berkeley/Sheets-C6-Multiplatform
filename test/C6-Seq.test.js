@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cleanup, resolveToSeq, revcomp, isPalindromic, gccontent, basebalance, maxrepeat, translate, Polynucleotide, polynucleotide, plasmid, oligo, dsDNA, resolveToPoly } from 'src/C6-Seq.js';
+import { cleanup, resolveToSeq, revcomp, isPalindromic, gccontent, basebalance, maxrepeat, translate, Polynucleotide, polynucleotide, comparePolynucleotides, plasmid, oligo, dsDNA, resolveToPoly } from 'src/C6-Seq.js';
 
 describe('C6-Seq Utilities', () => {
   
@@ -47,25 +47,25 @@ describe('C6-Seq Utilities', () => {
 describe('Polynucleotide Objects', () => {
 
   it('creates a plasmid correctly', () => {
-    const p = JSON.parse(plasmid('ACAACCCCAAGGACCGGATCCGAGAACCTCATGATCGTGG'));
+    const p = plasmid('ACAACCCCAAGGACCGGATCCGAGAACCTCATGATCGTGG');
     expect(p.isCircular).toBe(true);
     expect(p.isDoubleStranded).toBe(true);
   });
 
   it('creates an oligo correctly', () => {
-    const o = JSON.parse(oligo('ACAACCCCAAGGACCGGATCCGAGAACCTCATGATCGTGG'));
+    const o = oligo('ACAACCCCAAGGACCGGATCCGAGAACCTCATGATCGTGG');
     expect(o.isCircular).toBe(false);
     expect(o.isDoubleStranded).toBe(false);
   });
 
   it('creates a dsDNA fragment correctly', () => {
-    const d = JSON.parse(dsDNA('ACAACCCCAAGGACCGGATCCGAGAACCTCATGATCGTGG'));
+    const d = dsDNA('ACAACCCCAAGGACCGGATCCGAGAACCTCATGATCGTGG');
     expect(d.isCircular).toBe(false);
     expect(d.isDoubleStranded).toBe(true);
   });
 
   it('creates a sticky end fragment correctly', () => {
-    const poly = JSON.parse(polynucleotide('ACAACCCCAAGGACCGGATCCGAGAACCTCATGATCGTGG', 'AATT', 'GATC', true, false, false));
+    const poly = polynucleotide('ACAACCCCAAGGACCGGATCCGAGAACCTCATGATCGTGG', 'AATT', 'GATC', true, false, false);
     expect(poly.ext5).toBe('AATT');
     expect(poly.ext3).toBe('GATC');
   });
@@ -74,6 +74,39 @@ describe('Polynucleotide Objects', () => {
     const poly = resolveToPoly('ACAACCCCAAGGACCGGATCCGAGAACCTCATGATCGTGG');
     expect(poly.sequence).toBe('ACAACCCCAAGGACCGGATCCGAGAACCTCATGATCGTGG');
     expect(poly.isDoubleStranded).toBe(true);
+  });
+
+});
+describe('comparePolynucleotides', () => {
+  
+  it('returns true for identical polynucleotides', () => {
+    const poly1 = dsDNA('ATGCATGC');
+    const poly2 = dsDNA('ATGCATGC');
+    expect(comparePolynucleotides(poly1, poly2)).toBe(true);
+  });
+
+  it('returns false for different sequences', () => {
+    const poly1 = dsDNA('ATGCATGC');
+    const poly2 = dsDNA('ATGCATGA');
+    expect(comparePolynucleotides(poly1, poly2)).toBe(false);
+  });
+
+  it('returns false for different 5\' overhangs', () => {
+    const poly1 = polynucleotide('ATGCATGC', 'AATT', null, true, false, false);
+    const poly2 = polynucleotide('ATGCATGC', 'TTAA', null, true, false, false);
+    expect(comparePolynucleotides(poly1, poly2)).toBe(false);
+  });
+
+  it('returns false for different 3\' overhangs', () => {
+    const poly1 = polynucleotide('ATGCATGC', null, 'GATC', true, false, false);
+    const poly2 = polynucleotide('ATGCATGC', null, 'CTAG', true, false, false);
+    expect(comparePolynucleotides(poly1, poly2)).toBe(false);
+  });
+
+  it('returns true when overhangs match but are empty', () => {
+    const poly1 = polynucleotide('ATGCATGC', '', '', true, false, false);
+    const poly2 = polynucleotide('ATGCATGC', '', '', true, false, false);
+    expect(comparePolynucleotides(poly1, poly2)).toBe(true);
   });
 
 });

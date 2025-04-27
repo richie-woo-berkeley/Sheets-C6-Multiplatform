@@ -1,0 +1,166 @@
+import { dsDNA, plasmid, oligo } from 'src/C6-Seq.js';
+import { Polynucleotide, comparePolynucleotides } from 'src/C6-Seq.js';
+import { describe, it, expect } from 'vitest';
+import { PCR, gibson, goldengate, ligate, cutOnce, digest, parseCF, simCF } from 'src/C6-Sim.js';
+
+describe('C6-Sim Tests', () => {
+  
+  it('PCR correctly predicts PCR product', () => {
+    const forward = oligo('gacttGAATTCgcggccgctTCTAGAgTCCCTATCAGTGATAGAG');
+    const reverse = oligo('catcaACTAGTaGTGCTCAGTATCTCTATCAC');
+    const template = dsDNA('tccctatcagtgatagagattgacatccctatcagtgatagagatactgagcac');
+    const result = PCR(forward, reverse, template);
+    expect(result.sequence).toBe('GACTTGAATTCGCGGCCGCTTCTAGAGTCCCTATCAGTGATAGAGATTGACATCCCTATCAGTGATAGAGATACTGAGCACTACTAGTTGATG');
+  });
+
+  it('assemble correctly assembles fragments by Golden Gate', () => {
+    const frag1 = dsDNA('ccaaaGGTCTCAGCTTTGATCGATTCAACCTACTTCCCCTTCATAATCGGTACTAGAGACCacgac');
+    const frag2 = dsDNA('GGTCTCATACTCAAAATTTACTGACTGGACATGGTCACCACTTAAGTAAGCTTTGAGACC');
+    const result = goldengate(frag1, frag2, 'BsaI');
+    expect(result.sequence).toBe('GCTTTGATCGATTCAACCTACTTCCCCTTCATAATCGGTACTCAAAATTTACTGACTGGACATGGTCACCACTTAAGTAA');
+  });
+
+  it('gibson correctly assembles fragments by homologous recombination', () => {
+    const frag1 = dsDNA('TTGGGTGCACGAGTGGGTTACatcgaactggatctcaacagcggtaagatccttgagagttttcgccccgaagaacgttttccaatgatgagcacttttaaagttctgctatgtggcgcggtattatcccgtATTGACGCCGGGCAAGAGCAACT');
+    const frag2 = dsDNA('ATTGACGCCGGGCAAGAGCAACTcggtcgccgcatacactattctcagaatgacttggttgagtactcaccagtcacagaaaagcatcttacggatggcatgacagtaagagaattatgcagtgctgccataaccatgagtgataacactgcggccaacttacttctgacaacgatcggaggaccgaaggagctaaccgcttttttgcacaacATGGGGGATCATGTAACTCg');
+    const frag3 = dsDNA('ATGGGGGATCATGTAACTCgccttgatcgaaagtaaaagatgctgaagatcagTTGGG');
+    const result = gibson([frag1, frag2, frag3]);
+    expect(comparePolynucleotides(result, plasmid("TTGGGTGCACGAGTGGGTTACATCGAACTGGATCTCAACAGCGGTAAGATCCTTGAGAGTTTTCGCCCCGAAGAACGTTTTCCAATGATGAGCACTTTTAAAGTTCTGCTATGTGGCGCGGTATTATCCCGTATTGACGCCGGGCAAGAGCAACTCGGTCGCCGCATACACTATTCTCAGAATGACTTGGTTGAGTACTCACCAGTCACAGAAAAGCATCTTACGGATGGCATGACAGTAAGAGAATTATGCAGTGCTGCCATAACCATGAGTGATAACACTGCGGCCAACTTACTTCTGACAACGATCGGAGGACCGAAGGAGCTAACCGCTTTTTTGCACAACATGGGGGATCATGTAACTCGCCTTGATCGAAAGTAAAAGATGCTGAAGATCAGTTGGG")));
+  });
+
+  it('cutOnce correctly cuts linear DNA with BamHI', () => {
+    const poly = dsDNA({
+      sequence: "ACAACCCCAAGGACCGGATCCGAGACCCTGCAGTGATCGTGG",
+      ext5: "",
+      ext3: "",
+      isDoubleStranded: true,
+      isRNA: false,
+      isCircular: false,
+      mod_ext5: "hydroxyl",
+      mod_ext3: "hydroxyl"
+    });
+    const result = cutOnce(poly, "BamHI");
+    expect(result.length).toBe(2);
+    expect(result[0].ext3).toBe('GATC');
+    expect(result[1].ext5).toBe('GATC');
+  });
+
+  it('digest correctly digests a plasmid to completion', () => {
+    const pl = plasmid({
+      sequence: "AAAAAGAATTCTTTTTTTTTTTTTTTTTTTTTTTTTTTTGGATCCGGGGG",
+      ext5: "",
+      ext3: "",
+      isDoubleStranded: true,
+      isRNA: false,
+      isCircular: true,
+      mod_ext5: "",
+      mod_ext3: ""
+    });
+    const result = digest(pl, 'EcoRI,BamHI', 1);
+    expect(result.sequence).toBe('CTTTTTTTTTTTTTTTTTTTTTTTTTTTTG');
+    expect(result.ext5).toBe('AATT');
+    expect(result.ext3).toBe('GATC');
+  });
+
+  it('ligate correctly ligates two compatible fragments and circularizes single fragment', async () => {
+    const frag1 = dsDNA({
+      sequence: "AAAAA",
+      ext5: "GATC",
+      ext3: "",
+      isDoubleStranded: true,
+      isRNA: false,
+      isCircular: false,
+      mod_ext5: "phos5",
+      mod_ext3: "hydroxyl"
+    });
+    const frag2 = dsDNA({
+      sequence: "GGGGG",
+      ext5: "",
+      ext3: "GATC",
+      isDoubleStranded: true,
+      isRNA: false,
+      isCircular: false,
+      mod_ext5: "hydroxyl",
+      mod_ext3: "phos5"
+    });
+    const { ligate } = await import('src/C6-Sim.js');
+
+    const product = ligate([frag1, frag2]);
+    expect(product.sequence).toBe('AAAAAGGGGG');
+    expect(product.isCircular).toBe(false);
+
+    // Now test circularization of a single compatible fragment
+    const singleFrag = dsDNA({
+      sequence: "CCCCCC",
+      ext5: "GGGG",
+      ext3: "GGGG",
+      isDoubleStranded: true,
+      isRNA: false,
+      isCircular: false,
+      mod_ext5: "phos5",
+      mod_ext3: "phos5"
+    });
+    const circular = ligate([singleFrag]);
+    expect(circular.isCircular).toBe(true);
+    expect(circular.ext5).toBe('');
+    expect(circular.ext3).toBe('');
+    expect(comparePolynucleotides(circular, plasmid("CCCCCCGGGG"))).toBe(true);
+  });
+
+  it('parseCF parses simple construction file into correct steps and sequences', () => {
+    const input = [
+      ["PCR", "P6libF", "P6libR", "on", "pTP1", "P6"],
+      ["Assemble", "P6", "BsaI", "pP6"],
+    ];
+    const parsed = parseCF(input);
+    expect(parsed.steps.length).toBe(2);
+    expect(parsed.steps[0].operation).toBe('PCR');
+    expect(parsed.steps[1].operation).toBe('Assemble');
+  });
+
+  it('simCF runs construction steps and outputs correct product names', () => {
+    const input = {
+      steps: [
+        {
+          operation: "PCR",
+          forward_oligo: "fwd",
+          reverse_oligo: "rev",
+          template: "tmpl",
+          output: "pcrProduct"
+        }
+      ],
+      sequences: {
+        fwd: oligo("gacttGAATTCgcggccgctTCTAGAgTCCCTATCAGTGATAGAG"),
+        rev: oligo("catcaACTAGTaGTGCTCAGTATCTCTATCAC"),
+        tmpl: dsDNA("tccctatcagtgatagagattgacatccctatcagtgatagagatactgagcac")
+      }
+    };
+    const output = simCF(input);
+    expect(output[0][0]).toBe('pcrProduct');
+  });
+
+  it('parseCF and simCF runs a Gibson construction file', () => {
+    const input = `
+PCR	oGho6	oGho7	pGhost3-A	gh_ipcr
+PCR	oGho8	oGho9	p20N168	tetr
+GoldenGate	gh_ipcr	tetr	BsaI	gg4
+Transform	gg4	kan	37	pGhost4
+oligo	oGho6	ccataGGTCTCaGCTTggacataagcctgttcggttc		
+oligo	oGho7	cagttGGTCTCtAGTACATGTGCTAATAAAGGAAGCCC		
+oligo	oGho8	ccataGGTCTCaTACTttgtcgtagtatcccgagtacACGAATAACATTAGTCTCCTTC		
+oligo	oGho9	cagttGGTCTCtAAGCCGATAGCTTGGAGCAGTCgTTAAGACCCACTTTCAC		
+p20N168	attaccgcctttgagtgagctgataccgctcgccgcagccgaacgaccgagcgcagcgagtcagtgagcgaggaagcctgcaaCTCGAGccagACTAGActgtaacagagcattagcgcaaggtgatttttgtcttcttgcgctaattttttTCCCTATCAGTGATAGAGATTGACATCCCTATCAGTGATAGAGATACTGAGCACATCAGCAGGACGCACTGACCggatccaaataggagaaatactagATGTCTTATTCAAAGCATGGCATCGTACAAGAAATGAAGACGAAATACCATATGGAAGGCAGTGTCAATGGCCATGAATTTACGATCGAAGGTGTAGGAACTGGGTACCCTTACGAAGGGAAACAGATGTCCGAATTAGTGATCATCAAGCCTGCGGGAAAACCCCTTCCATTCTCCTTTGACATACTGTCATCAGTCTTTCAATATGGAAACCGTTGCTTCACAAAGTACCCGGCAGACATGCCTGACTATTTCAAGCAAGCATTCCCAGATGGAATGTCATATGAAAGGTCATTTCTATTTGAGGATGGAGCAGTTGCTACAGCCAGCTGGAACATTCGACTCGAAGGAAATTGCTTCATCCACAAATCCATCTTTCATGGCGTAAACTTTCCCGCTGATGGACCCGTAATGAAAAAGAAGACCATTGACTGGGATAAGTCCTTCGAAAAAATGACTGTGTCTAAAGAGGTGCTAAGAGGTGACGTGACTATGTTTCTTATGCTCGAAGGAGGTGGTTCTCACAGATGCCAATTTCACTCCACTTACAAAACAGAGAAGCCGGTCACACTGCCCCCGAATCATGTCGTAGAACATCAAATTGTGAGGACCGACCTTGGCCAAAGTGCAAAAGGCTTTACAGTCAAGCTGGAAGCACATGCCGCGGCTCATGTTAACCCTTTGAAGGTTAAATAAtaaGAATTCccctACTAGACGAATAACATTAGTCTCCTTCGGGAGACTtTTTTTCATTTTACCAGCCACGTATCGCCAGATGtttacatttaatgataatgtattgactgtaacagaAGGATCTaaaataactctatcaatgatagagtgtcaacaaaaattaggaattaATGATGAGTAGATTAGATAAAAGTAAAGTGATTAACAGCGCATTAGAGCTGCTTAATGAGGTCGGAATCGAAGGTTTAAAAACCCGTAAACTCGCCCAGAAACTTGGTGTAGAGCAGCCTACATTGTATTGGCATGTAAAAAATAAGCGGGCTTTGCTCGACGCCTTAGCCATTGAGATGTTAGATAGGCACCATACTCACTTTTGCCCTTTAGAAGGGGAAAGCTGGCAAGATTTTTTACGTAATAACGCTAAAAGTTTTAGATGTGCTTTACTAAGTCATCGCGATGGAGCAAAAGTACATTTAGGTACACGGCCTACAGAAAAACAGTATGAAACTCTCGAAAATCAATTAGCCTTTTTATGCCAACAAGGTTTTTCACTAGAGAATGCATTATATGCACTCAGCGCTGTGGGGCATTTTACTTTAGGTTGCGTATTGGAAGATCAAGAGCATCAAGTCGCTAAAGAAGAAAGGGAAACACCTACTACTGATAGTATGCCGGCATTATTACGACAAGCTATCGAATTATTTGAACACCAAGGTGCAGAGCCAGCCTTCTTATTCGGCCTTGAATTGATCATATGCGGATTAGAAAAACAACTTAAATGTGAAAGTGGGTCTTAAcAATTCagcaagaaatcatccttagcgaaagctaaggattttttttatctgaaattctgcctcgtgatacgcctatttttataggttaatgtcatgataataatggtttcttagacgtcaggtggcacttttcggggaaatgtgcgcggaacccctatttgtttatttttctaaatacattcaaatatgtatccgctcatgagacaataaccctgataaatgcttcaataatattgaaaaaggaagagtatgagtattcaacatttccgtgtcgcccttattcccttttttgcggcattttgccttcctgtttttgctcacccagaaacgctggtgaaagtaaaagatgctgaagatcagttgggtgcacgagtgggttacatcgaactggatctcaacagcggtaagatccttgagagttttcgccccgaagaacgttttccaatgatgagcacttttaaagttctgctatgtggcgcggtattatcccgtattgacgccgggcaagagcaactcggtcgccgcatacactattctcagaatgacttggttgagtactcaccagtcacagaaaagcatcttacggatggcatgacagtaagagaattatgcagtgctgccataaccatgagtgataacactgcggccaacttacttctgacaacgatcggaggaccgaaggagctaaccgcttttttgcacaacatgggggatcatgtaactcgccttgatcgttgggaaccggagctgaatgaagccataccaaacgacgagcgtgacaccacgatgcctgtagcaatggcaacaacgttgcgcaaactattaactggcgaactacttactctagcttcccggcaacaattaatagactggatggaggcggataaagttgcaggaccacttctgcgctcggcccttccggctggctggtttattgctgataaatctggagccggtgagcgtggCtctcgcggtatcattgcagcactggggccagatggtaagccctcccgtatcgtagttatctacacgacggggagtcaggcaactatggatgaacgaaatagacagatcgctgagataggtgcctcactgattaagcattggtaactgtcagaccaagtttactcatatatactttagattgatttaaaacttcatttttaatttaaaaggatctaggtgaagatcctttttgataatctcatgaccaaaatcccttaacgtgagttttcgttccactgagcgtcagaccccgtagaaaagatcaaaggatcttcttgagatcctttttttctgcgcgtaatctgctgcttgcaaacaaaaaaaccaccgctaccagcggtggtttgtttgccggatcaagagctaccaactctttttccgaaggtaactggcttcagcagagcgcagataccaaatactgtccttctagtgtagccgtagttaggccaccacttcaagaactctgtagcaccgcctacatacctcgctctgctaatcctgttaccagtggctgctgccagtggcgataagtcgtgtcttaccgggttggactcaagacgatagttaccggataaggcgcagcggtcgggctgaacggggggttcgtgcacacagcccagcttggagcgaacgacctacaccgaactgagatacctacagcgtgagctatgagaaagcgccacgcttcccgaagggagaaaggcggacaggtatccggtaagcggcagggtcggaacaggagagcgcacgagggagcttccagggggaaacgcctggtatctttatagtcctgtcgggtttcgccacctctgacttgagcgtcgatttttgtgatgctcgtcaggggggcggagcctatggaaaaacgccagcaacgcggcctttttacggttcctggccttttgctggccttttgctcacatgttctttcctgcgttatcccctgattctgtggataaccgt			
+plasmid	pGhost3-A	ATTACCGCCTTTGAGTGAGCaGATACCGCTCGCCGCAGCCGAACGACCGAGCGCAGCTTTGATCGATTCAACCTCTGATCATCACATTCTGACCCTGCTCCGGCAGGGTTTTTTGTTATCGAGTACCTAGCCTACGACGAGTCGTGATTGACATCTGGCCGATCCCAGCCTATAATCTGTCCATGAGGTGAGACTTCCCCTTCATAATCGGTACTGAGGTTGTCGTTGGTAATGAACtctagatttaagaaggagatatacatatgagtaaaggagaagctgtgattaaagagttcatgcgcttcaaagttcacatggagggttctatgaacggtcacgagttcgagatcgaaggcgaaggcgagggccgtccgtatgaaggcacccagaccgccaaactgaaagtgactaaaggcggcccgctgcctttttcctgggacatcctgagcccgcaatttatgtacggttctagggcgttcatcaaacacccagcggatatcccggactattataagcagtcttttccggaaggtttcaagtgggaacgcgtaatgaattttgaagatggtggtgccgtgaccgtcactcaggacacctccctggaggatggcaccctgatctataaagttaaactgcgtggtactaattttccacctgatggcccggtgatgcagaaaaagacgatgggttgggaggcgtctaccgaacgcttgtatccggaagatggtgtgctgaaaggcgacattaaaatggccctgcgcctgaaagatggcggccgctatctggctgacttcaaaaccacgtacaaagccaagaaacctgtgcagatgcctggcgcgtacaatgtggaccgcaaactggacatcacctctcataatgaagattatacggtggtagagcaatatgagcgctccgagggtcgtcattctaccggtggcatggatgaactatacaaataaCTTCATGTATGACCTTAAGCGCGCTTGATTCTTAGTTTCTCGTTGGGCTGCTTTAAGCAGGATGGGGATTTCTCCCCATTCATTTTATTCCCAACATCACATGGACAAGTTCGACTCTGAATTTACAGGACCAGTCCTAAATGATATAATGAATCGACTTGGTGGGCTTCCTTTATTAGCACATGTACTggacataagcctgttcggttcgtaagctgtaatgcaagtagcgtatgcgctcacgcaactggtccagaaccttgaccgaacgcagcggtggtaacggcgcagtggcggttttcatggcttgttatgactgtttttttggggtacagtctatgcctcgggcatccaagcagcaagcgcgttacgccgtgggtcgatgtttgatgttatggagcagcaacgatgttacgcagcagggcagtcgccctaaaacaaagttaaacatcatgagggaagcggtgatcgccgaagtatcgactcaactatcagaggtagttggcgtcatcgagcgccatctcgaaccgacgttgctggccgtacatttgtacggctccgcagtggatggcggcctgaagccacacagtgatattgatttgctggttacggtgaccgtaaggcttgatgaaacaacgcggcgagctttgatcaacgaccttttggaaacttcggcttcccctggagagagcgagattctccgcgctgtagaagtcaccattgttgtgcacgacgacatcattccgtggcgttatccagctaagcgcgaactgcaatttggagaatggcagcgcaatgacattcttgcaggtatcttcgagccagccacgatcgacattgatctggctatcttgctgacaaaagcaagagaacatagcgttgccttggtaggtccagcggcggaggaactctttgatccggttcctgaacaggatctatttgaggcgctaaatgaaaccttaacgctatggaactcgccgcccgactgggctggcgatgagcgaaatgtagtgcttacgttgtcccgcatttggtacagcgcagtaaccggcaaaatcgcgccgaaggatgtcgctgccgactgggcaatggagcgcctgccggcccagtatcagcccgtcatacttgaagctagacaggcttatcttggacaagaagaagatcgcttggcctcgcgcgcagatcagttggaagaatttgtccactacgtgaaaggcgagatcaccaaggtagtcggcaaataatgtctaacaattcgttcaagcGCTTCCGGCTTATCGGTCAGTTTCACCTGATTTACGTAAAAACCCGCTTCGGCGGGTTTTTGCTTTTGGAGGGGCAGAAAGATGAATGACTGTCCACGACGCTATACCCAAAAGAAATGTTCATGGTCATAGCTGTTTCCTGTGTGGTGGTAGATCCTCTACGCCGGACGCATCGTGGCCGGCATCACCGGCGCCACAGGTGCGGTTGCTGGCGCCTATATCGCCGACATCACCCAGAAATCATCCTTAGCGAAAGCTAAGGATTTTTTTTATCTGAAATTCTGCCTCGTGATACgttgatgataccgctgccttactgggtgcattagccagtctgaatgacctgtcacgggataatccgaagtggtcagactggaaaatcagagggcaggaactgctgaacagcaaaaagtcagatagcaccacatagcagacccgccataaaacgccctgagaagcccgtgacgggcttttcttgtattatgggtagtttccttgcatgaatccataaaaggcgcctgtagtgccatttacccccattcactgccagagccgtgagcgcagcgaactgaatgtcacgaaaaagacagcgactcaggtgcctgatggtcggagacaaaaggaatattcagcgatttgcccgattgcggccgcaaccgagcttgcgagggtgctacttaagcctttagggttttaaggtctgttttgtagaggagcaaacagcgtttgcgacatccttttgtaatactgcggaactgactaaagtagtgagttatCcacagggctgggatctattctttttatctttttttattctttctttattctataaattataaccacttgaatataaacaaaaaaaacacacaaaggtctagcggaatttacagagggtctagcagaatttacaagttttccagcaaaggtctagcagaatttacagatacccacaactcaaaggaaaaggactagtaattatcattgactagcccatctcaattggtatagtgattaaaatcacctagaccaattgagatgtatgtctgaattagttgttttcaaagcaaatgaactagcgattagtcgctatgacttaacggagcatgaaaccaagctaattttatgctgtgtggcactactcaaccccacgattgaaaaccctacaaggaaagaacggacggtatcgttcacttataaccaatacgctcagatgatgaacatcagtagggaaaatgcttatggtgtattagctaaagcaaccagagagctgatgacgagaactgtggaaatcaggaatcctttggttaaaggctttgagattttccagtggacaaactatgccaagttctcaagcgaaaaattagaattagtttttagtgaagagatattgccttatcttttccagttaaaaaaattcataaaatataatctggaacatgttaagtcttttgaaaacaaatactctatgaggatttatgagtggttattaaaagaactaacacaaaagaaaactcacaaggcaaatatagagattagccttgatgaatttaagttcatgttaatgcttgaaaataactaccatgagtttaaaaggcttaaccaatgggttttgaaaccaataagtaaagatttaaacacttacagcaatatgaaattggtggttgataagcgaggccgcccgactgatacgttgattttccaagttgaactagatagacaaatggatctcgtaaccgaacttgagaacaaccagataaaaatgaatggtgacaaaataccaacaaccattacatcagattcctacctacgtaacggactaagaaaaacactacacgatgctttaactgcaaaaattcagctcaccagttttgaggcaaaatttttgagtgacatgcaaagtaagcatgatctcaatggttcgttctcatggctcacgcaaaaacaacgaaccacactagagaacatactggctaaatacggaaggatctgaggttcttatggctcttgtatC		
+    `;
+    const parsed = parseCF(input);
+    const result = simCF(parsedCF); // Simulate the CF based on parsed data
+    console.log("result:\n" + result);
+    const plasmidResult = result[3][1];
+  
+    const expected = plasmid("ATTACCGCCTTTGAGTGAGCaGATACCGCTCGCCGCAGCCGAACGACCGAGCGCAGCTTTGATCGATTCAACCTCTGATCATCACATTCTGACCCTGCTCCGGCAGGGTTTTTTGTTATCGAGTACCTAGCCTACGACGAGTCGTGATTGACATCTGGCCGATCCCAGCCTATAATCTGTCCATGAGGTGAGACTTCCCCTTCATAATCGGTACTGAGGTTGTCGTTGGTAATGAACtctagatttaagaaggagatatacatatgagtaaaggagaagctgtgattaaagagttcatgcgcttcaaagttcacatggagggttctatgaacggtcacgagttcgagatcgaaggcgaaggcgagggccgtccgtatgaaggcacccagaccgccaaactgaaagtgactaaaggcggcccgctgcctttttcctgggacatcctgagcccgcaatttatgtacggttctagggcgttcatcaaacacccagcggatatcccggactattataagcagtcttttccggaaggtttcaagtgggaacgcgtaatgaattttgaagatggtggtgccgtgaccgtcactcaggacacctccctggaggatggcaccctgatctataaagttaaactgcgtggtactaattttccacctgatggcccggtgatgcagaaaaagacgatgggttgggaggcgtctaccgaacgcttgtatccggaagatggtgtgctgaaaggcgacattaaaatggccctgcgcctgaaagatggcggccgctatctggctgacttcaaaaccacgtacaaagccaagaaacctgtgcagatgcctggcgcgtacaatgtggaccgcaaactggacatcacctctcataatgaagattatacggtggtagagcaatatgagcgctccgagggtcgtcattctaccggtggcatggatgaactatacaaataaCTTCATGTATGACCTTAAGCGCGCTTGATTCTTAGTTTCTCGTTGGGCTGCTTTAAGCAGGATGGGGATTTCTCCCCATTCATTTTATTCCCAACATCACATGGACAAGTTCGACTCTGAATTTACAGGACCAGTCCTAAATGATATAATGAATCGACTTGGTGGGCTTCCTTTATTAGCACATGTACTTTGTCGTAGTATCCCGAGTACACGAATAACATTAGTCTCCTTCGGGAGACTTTTTTTCATTTTACCAGCCACGTATCGCCAGATGTTTACATTTAATGATAATGTATTGACTGTAACAGAAGGATCTAAAATAACTCTATCAATGATAGAGTGTCAACAAAAATTAGGAATTAATGATGAGTAGATTAGATAAAAGTAAAGTGATTAACAGCGCATTAGAGCTGCTTAATGAGGTCGGAATCGAAGGTTTAAAAACCCGTAAACTCGCCCAGAAACTTGGTGTAGAGCAGCCTACATTGTATTGGCATGTAAAAAATAAGCGGGCTTTGCTCGACGCCTTAGCCATTGAGATGTTAGATAGGCACCATACTCACTTTTGCCCTTTAGAAGGGGAAAGCTGGCAAGATTTTTTACGTAATAACGCTAAAAGTTTTAGATGTGCTTTACTAAGTCATCGCGATGGAGCAAAAGTACATTTAGGTACACGGCCTACAGAAAAACAGTATGAAACTCTCGAAAATCAATTAGCCTTTTTATGCCAACAAGGTTTTTCACTAGAGAATGCATTATATGCACTCAGCGCTGTGGGGCATTTTACTTTAGGTTGCGTATTGGAAGATCAAGAGCATCAAGTCGCTAAAGAAGAAAGGGAAACACCTACTACTGATAGTATGCCGGCATTATTACGACAAGCTATCGAATTATTTGAACACCAAGGTGCAGAGCCAGCCTTCTTATTCGGCCTTGAATTGATCATATGCGGATTAGAAAAACAACTTAAATGTGAAAGTGGGTCTTAACGACTGCTCCAAGCTATCGGCTTggacataagcctgttcggttcgtaagctgtaatgcaagtagcgtatgcgctcacgcaactggtccagaaccttgaccgaacgcagcggtggtaacggcgcagtggcggttttcatggcttgttatgactgtttttttggggtacagtctatgcctcgggcatccaagcagcaagcgcgttacgccgtgggtcgatgtttgatgttatggagcagcaacgatgttacgcagcagggcagtcgccctaaaacaaagttaaacatcatgagggaagcggtgatcgccgaagtatcgactcaactatcagaggtagttggcgtcatcgagcgccatctcgaaccgacgttgctggccgtacatttgtacggctccgcagtggatggcggcctgaagccacacagtgatattgatttgctggttacggtgaccgtaaggcttgatgaaacaacgcggcgagctttgatcaacgaccttttggaaacttcggcttcccctggagagagcgagattctccgcgctgtagaagtcaccattgttgtgcacgacgacatcattccgtggcgttatccagctaagcgcgaactgcaatttggagaatggcagcgcaatgacattcttgcaggtatcttcgagccagccacgatcgacattgatctggctatcttgctgacaaaagcaagagaacatagcgttgccttggtaggtccagcggcggaggaactctttgatccggttcctgaacaggatctatttgaggcgctaaatgaaaccttaacgctatggaactcgccgcccgactgggctggcgatgagcgaaatgtagtgcttacgttgtcccgcatttggtacagcgcagtaaccggcaaaatcgcgccgaaggatgtcgctgccgactgggcaatggagcgcctgccggcccagtatcagcccgtcatacttgaagctagacaggcttatcttggacaagaagaagatcgcttggcctcgcgcgcagatcagttggaagaatttgtccactacgtgaaaggcgagatcaccaaggtagtcggcaaataatgtctaacaattcgttcaagcGCTTCCGGCTTATCGGTCAGTTTCACCTGATTTACGTAAAAACCCGCTTCGGCGGGTTTTTGCTTTTGGAGGGGCAGAAAGATGAATGACTGTCCACGACGCTATACCCAAAAGAAATGTTCATGGTCATAGCTGTTTCCTGTGTGGTGGTAGATCCTCTACGCCGGACGCATCGTGGCCGGCATCACCGGCGCCACAGGTGCGGTTGCTGGCGCCTATATCGCCGACATCACCCAGAAATCATCCTTAGCGAAAGCTAAGGATTTTTTTTATCTGAAATTCTGCCTCGTGATACgttgatgataccgctgccttactgggtgcattagccagtctgaatgacctgtcacgggataatccgaagtggtcagactggaaaatcagagggcaggaactgctgaacagcaaaaagtcagatagcaccacatagcagacccgccataaaacgccctgagaagcccgtgacgggcttttcttgtattatgggtagtttccttgcatgaatccataaaaggcgcctgtagtgccatttacccccattcactgccagagccgtgagcgcagcgaactgaatgtcacgaaaaagacagcgactcaggtgcctgatggtcggagacaaaaggaatattcagcgatttgcccgattgcggccgcaaccgagcttgcgagggtgctacttaagcctttagggttttaaggtctgttttgtagaggagcaaacagcgtttgcgacatccttttgtaatactgcggaactgactaaagtagtgagttatCcacagggctgggatctattctttttatctttttttattctttctttattctataaattataaccacttgaatataaacaaaaaaaacacacaaaggtctagcggaatttacagagggtctagcagaatttacaagttttccagcaaaggtctagcagaatttacagatacccacaactcaaaggaaaaggactagtaattatcattgactagcccatctcaattggtatagtgattaaaatcacctagaccaattgagatgtatgtctgaattagttgttttcaaagcaaatgaactagcgattagtcgctatgacttaacggagcatgaaaccaagctaattttatgctgtgtggcactactcaaccccacgattgaaaaccctacaaggaaagaacggacggtatcgttcacttataaccaatacgctcagatgatgaacatcagtagggaaaatgcttatggtgtattagctaaagcaaccagagagctgatgacgagaactgtggaaatcaggaatcctttggttaaaggctttgagattttccagtggacaaactatgccaagttctcaagcgaaaaattagaattagtttttagtgaagagatattgccttatcttttccagttaaaaaaattcataaaatataatctggaacatgttaagtcttttgaaaacaaatactctatgaggatttatgagtggttattaaaagaactaacacaaaagaaaactcacaaggcaaatatagagattagccttgatgaatttaagttcatgttaatgcttgaaaataactaccatgagtttaaaaggcttaaccaatgggttttgaaaccaataagtaaagatttaaacacttacagcaatatgaaattggtggttgataagcgaggccgcccgactgatacgttgattttccaagttgaactagatagacaaatggatctcgtaaccgaacttgagaacaaccagataaaaatgaatggtgacaaaataccaacaaccattacatcagattcctacctacgtaacggactaagaaaaacactacacgatgctttaactgcaaaaattcagctcaccagttttgaggcaaaatttttgagtgacatgcaaagtaagcatgatctcaatggttcgttctcatggctcacgcaaaaacaacgaaccacactagagaacatactggctaaatacggaaggatctgaggttcttatggctcttgtatC");
+    const passed = comparePolynucleotides(plasmidResult, expected);
+    expect(passed);
+  });
+
+});
+
