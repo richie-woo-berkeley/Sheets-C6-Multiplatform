@@ -131,8 +131,12 @@ function cleanup(sequence) {
  * @returns {boolean} true if equivalent, false otherwise
  */
 function comparePolynucleotides(polyA, polyB) {
-  if (!(polyA instanceof Polynucleotide) || !(polyB instanceof Polynucleotide)) {
-    throw new Error("Both inputs must be Polynucleotide objects.");
+  if (polyA.constructor.name !== "Polynucleotide") {
+    throw new Error("polyA inputs must be Polynucleotide objects");
+  }
+
+  if (polyB.constructor.name !== "Polynucleotide") {
+    throw new Error("polyB inputs must be Polynucleotide objects");
   }
 
   if(polyA.isCircular != polyB.isCircular) {

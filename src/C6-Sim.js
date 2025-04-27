@@ -588,6 +588,10 @@ function ligateEnds(poly) {
  * @returns {Polynucleotide} The assembled Polynucleotide.
  */
 function goldengate(polynucleotides, enzyme) {
+  console.log("what's polynucleotidessssss");
+  console.log(polynucleotides);
+  console.log("what's enzymmmme");
+  console.log(enzyme);
   if (!simRestrictionEnzymes.hasOwnProperty(enzyme)) {
     throw new Error(`Enzyme ${enzyme} not found for Golden Gate assembly`);
   }
@@ -598,7 +602,7 @@ function goldengate(polynucleotides, enzyme) {
   // Validate all are double-stranded Polynucleotides
   polynucleotides.forEach((poly, idx) => {
     // console.log(poly)
-    if (!(poly instanceof Polynucleotide)) {
+    if (poly.constructor.name !== "Polynucleotide") {
       throw new Error(`Input at index ${idx} is not a Polynucleotide`);
     }
     if (!poly.isDoubleStranded) {
@@ -704,19 +708,29 @@ function goldengate(polynucleotides, enzyme) {
  *                   not circular and `check_circular` is set to `true`.
  */
 function gibson(polynucleotides, check_circular = true) {
-  console.log("polynucleotide inputs");
+  console.log("polynucleotidesss inputs");
 
+  console.log(polynucleotides.length);
   console.log(polynucleotides);
+
+
   if (!Array.isArray(polynucleotides)) {
+    console.log("tiggggered");
+
     polynucleotides = [polynucleotides];
   }
+
+
 
   if (polynucleotides.length === 0) {
     throw new Error("Expected non-empty array of Polynucleotide objects");
   }
 
   for (const poly of polynucleotides) {
-    if (!(poly instanceof Polynucleotide)) {
+    console.log("lookking for this");
+    console.log(poly.constructor.name);
+
+    if (poly.constructor.name !== "Polynucleotide") {
       throw new Error("All inputs must be Polynucleotide objects");
     }
     if (!poly.isDoubleStranded) {
@@ -725,6 +739,8 @@ function gibson(polynucleotides, check_circular = true) {
     if (poly.isCircular) {
       throw new Error("All Polynucleotides must be linear for Gibson assembly");
     }
+
+    console.log("sequence survivived");
   }
 
   const HOMOLOGY_LENGTH = 20;
