@@ -206,10 +206,8 @@ function parseCF(...blobs) {
     }
 
     function tokenize(text) {
-        let tokens = text.split(/[\s,/()]+/);
-        tokens = tokens.map(token => token.replace(/[(),]/g, ""));
-        tokens = tokens.filter(token => !["on", "with", ""].includes(token.toLowerCase()));
-        return tokens;
+        let tokens = text.trim().split(/\s+/);
+        return tokens.filter(token => !["on", "with", ""].includes(token.toLowerCase()));
     }
 
     let singleblob = "";
@@ -256,10 +254,11 @@ function parseCF(...blobs) {
                     break;
 
                 case "Digest":
-                    step.output = tokens[4];
+                    // Simplified parsing for Digest step as requested
                     step.dna = tokens[1];
-                    step.enzymes = tokens[2];
-                    step.fragselect = parseInt(tokens[3], 10);
+                    step.enzymes = tokens[2].split(',');
+                    step.fragselect = tokens[3] ? parseInt(tokens[3], 10) : null;
+                    step.output = tokens[tokens.length - 1];
                     break;
 
                 case "Transform":
@@ -387,6 +386,8 @@ const simRestrictionEnzymes = {
     SpeI: {recognitionSequence: "ACTAGT", cut5: -5, cut3: -1},
     XbaI: {recognitionSequence: "TCTAGA", cut5: -5, cut3: -1},
     PstI: {recognitionSequence: "CTGCAG", cut5: -1, cut3: -5},
+    NcoI: {recognitionSequence: "CCATGG", cut5: -5, cut3: -1},
+
 }
 
 //Calculate the reverse complement of the recognition sequence as well as
@@ -466,6 +467,7 @@ function sortAndValidateGoldenGateFragments(digestionFragments) {
  * @throws {Error} - If fragments cannot ligate properly or not all are incorporated.
  */
 function ligate(dnaPolys) {
+  console.log(dnaPolys);
   // If only one fragment, try to circularize
   if (dnaPolys.length === 1) {
     const poly = dnaPolys[0];
@@ -708,14 +710,14 @@ function goldengate(polynucleotides, enzyme) {
  *                   not circular and `check_circular` is set to `true`.
  */
 function gibson(polynucleotides, check_circular = true) {
-  console.log("polynucleotidesss inputs");
+  // console.log("polynucleotidesss inputs");
 
-  console.log(polynucleotides.length);
-  console.log(polynucleotides);
+  // console.log(polynucleotides.length);
+  // console.log(polynucleotides);
 
 
   if (!Array.isArray(polynucleotides)) {
-    console.log("tiggggered");
+    // console.log("tiggggered");
 
     polynucleotides = [polynucleotides];
   }
@@ -727,8 +729,8 @@ function gibson(polynucleotides, check_circular = true) {
   }
 
   for (const poly of polynucleotides) {
-    console.log("lookking for this");
-    console.log(poly.constructor.name);
+    // console.log("lookking for this");
+    // console.log(poly.constructor.name);
 
     if (poly.constructor.name !== "Polynucleotide") {
       throw new Error("All inputs must be Polynucleotide objects");
@@ -740,7 +742,7 @@ function gibson(polynucleotides, check_circular = true) {
       throw new Error("All Polynucleotides must be linear for Gibson assembly");
     }
 
-    console.log("sequence survivived");
+    // console.log("sequence survivived");
   }
 
   const HOMOLOGY_LENGTH = 20;
@@ -938,7 +940,8 @@ function digest(seq, enzymes, fragselect) {
   }
 
   // Tokenize the enzymes list and confirm they are recognizable
-  const enzList = enzymes.split(/[^A-Za-z0-9]+/).filter(name => name.trim().length > 0);
+  const enzList = enzymes;
+
   for (let i = 0; i < enzList.length; i++) {
     const enzymeData = simRestrictionEnzymes[enzList[i]];
     if (!enzymeData) {
@@ -989,12 +992,12 @@ function digest(seq, enzymes, fragselect) {
         targetIndex = fragselect === 0 ? fragsOut.length - 1 : fragselect - 1;
       }
       // Return a new plasmid Polynucleotide with the selected fragment's sequence
-      const newSeq = fragsOut[targetIndex].sequence;
-      return plasmid(newSeq);
+      const newSeq = fragsOut[targetIndex];
+      return newSeq;
     } else {
       // Linear case: return a dsDNA Polynucleotide with the selected fragment's sequence
-      const newSeq = fragsOut[fragselect].sequence;
-      return dsDNA(newSeq);
+      const newSeq = fragsOut[fragselect];
+      return newSeq;
     }
   } else {
     throw new Error(
@@ -1071,7 +1074,7 @@ function simCF(cfData) {
 
             case 'Digest': {
                 const dnaSeq = lookupSequence(step.dna);
-                const polyObj = digest(dnaSeq, step.enzymes.join(','), step.fragselect);
+                const polyObj = digest(dnaSeq, step.enzymes, step.fragselect);
                 // Since digest now returns a real Polynucleotide object, use it directly
                 products.push({
                     name: step.output,
@@ -1085,7 +1088,7 @@ function simCF(cfData) {
                 const ligatedPoly = ligate(dnaPolys);
                 products.push({
                     name: step.output,
-                    poly: ligatedPoly
+                    sequence: ligatedPoly
                 });
             }
           break;
