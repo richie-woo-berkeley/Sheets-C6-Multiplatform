@@ -575,9 +575,9 @@ function gibson(seqs, check_circular) {
   //Iterate until it converges on a single sequence
   while(startList.length > 1) {
     //Compare the sequences for homology pairwise
-    for(seq1 of startList) {
+    for (const seq1 of startList) {
       const threePrime = seq1.substring(seq1.length - HOMOLOGY_LENGTH);
-      for(seq2 of startList) {
+      for (const seq2 of startList) {
         if(seq2 === seq1) {
           continue;
         }
@@ -653,7 +653,8 @@ function gibson(seqs, check_circular) {
  * @customfunction
  */
 function cutOnce(polyjson, enz) {
-	const poly = JSON.parse(polyjson);
+	let output;
+	const poly = polyjson;
 
 	const seq = poly.sequence;
 	const enzData = simRestrictionEnzymes[enz];
@@ -737,7 +738,7 @@ function cutOnce(polyjson, enz) {
 		output = [leftPoly, rightPoly];
 	}
 
-	return JSON.stringify(output);
+	return output;
 }
 
 /**
@@ -750,18 +751,19 @@ function cutOnce(polyjson, enz) {
  * @throws {Error} If the input sequence cannot be resolved to a Polynucleotide object or if any of the specified enzymes cannot be found.
  */
 function digest(seq, enzymes, fragselect) {
-	// Convert the String to a Polynucleotide if it isn't already one
-	seq = _resolveToPoly(seq);
+	// Add a check to confirm input is a Polynucleotide object
+	if (typeof seq.sequence !== 'string') {
+	  throw new Error('Input to digest must be a Polynucleotide object');
+	}
 
 	// Tokenize the enzymes list and confirm they are recognizable
-  const enzList = enzymes.split(/[^A-Za-z0-9]+/).filter(name => name.trim().length > 0);
-  const enzymeList = [];
-  for (var i = 0; i < enzList.length; i++) {
-    const enzymeData = simRestrictionEnzymes[enzList[i]];
-    if (!enzymeData) {
-      throw new Error(`Enzyme "${enzList[i]}" not found.`);
-    }
-  }
+	const enzList = enzymes.split(/[^A-Za-z0-9]+/).filter(name => name.trim().length > 0);
+	for (var i = 0; i < enzList.length; i++) {
+	  const enzymeData = simRestrictionEnzymes[enzList[i]];
+	  if (!enzymeData) {
+	    throw new Error(`Enzyme "${enzList[i]}" not found.`);
+	  }
+	}
 
 	var fragsOut = [];
 	fragsOut.push(seq);
@@ -773,15 +775,14 @@ function digest(seq, enzymes, fragselect) {
 
 		// Iterate over the worklist and enzymes and do one cut
 		for (var i = 0; i < worklist.length; i++) {
-			var polyjson = JSON.stringify(worklist[i]);
+			var polyjson = worklist[i];
 			var foundCut = false;
 
 			for (var enz of enzList) {
 				var frags = cutOnce(polyjson, enz);
 				if (frags) {
 					// Remove polynucleotide just cut and add the fragments
-					const fragsParsed = JSON.parse(frags);
-					fragsOut = [...fragsOut, ...fragsParsed];
+					fragsOut = [...fragsOut, ...frags];
 					foundCut = true;
 					continue outer;
 				}
@@ -814,9 +815,9 @@ function digest(seq, enzymes, fragselect) {
 				targetIndex = fragselect === 0 ? fragsOut.length - 1 : fragselect - 1;
 			}
 
-			return JSON.stringify(fragsOut[targetIndex]);
+			return fragsOut[targetIndex];
 		} else {
-			return JSON.stringify(fragsOut[fragselect]);
+			return fragsOut[fragselect];
 		}
 	} else {
 		throw new Error("Invalid fragselect provided");
@@ -841,12 +842,12 @@ function simCF(cfData) {
     function lookupSequence(key) {
         const foundProduct = products.find((product) => product.name === key);
         if (foundProduct) {
-            return foundProduct.sequence;
+            return resolveToPoly(foundProduct.sequence);
         }
 
         const foundSequence = sequences[key];
         if (foundSequence) {
-            return foundSequence;
+            return resolveToPoly(foundSequence);
         }
 
         throw new Error(`Missing sequence for key: ${key}`);
@@ -857,49 +858,49 @@ function simCF(cfData) {
 
         switch (step.operation) {
             case 'PCR': {
-                const forwardOligoSeq = lookupSequence(step.forward_oligo);
-                const reverseOligoSeq = lookupSequence(step.reverse_oligo);
-                const templateSeq = lookupSequence(step.template);
+                const forwardOligoSeq = lookupSequence(step.forward_oligo).sequence;
+                const reverseOligoSeq = lookupSequence(step.reverse_oligo).sequence;
+                const templateSeq = lookupSequence(step.template).sequence;
 
-                const product = PCR(forwardOligoSeq, reverseOligoSeq, templateSeq);
+                const productSeq = PCR(forwardOligoSeq, reverseOligoSeq, templateSeq);
+                const productPoly = resolveToPoly(productSeq);
                 products.push({
                     name: step.output,
-                    sequence: product
+                    sequence: productPoly.sequence
                 });
             }
             break;
 
             case 'Assemble': {
-                const dnaSequences = step.dnas.map((dnaKey) => lookupSequence(dnaKey));
-
-                const product = assemble(dnaSequences, step.enzyme);
+                const dnaSequences = step.dnas.map((dnaKey) => lookupSequence(dnaKey).sequence);
+                const productSeq = assemble(dnaSequences, step.enzyme);
+                const productPoly = resolveToPoly(productSeq);
                 products.push({
                     name: step.output,
-                    sequence: product
+                    sequence: productPoly.sequence
                 });
             }
             break;
 
             case 'Digest': {
-              const dnaSeq = lookupSequence(step.dna);
-              const product = digest(dnaSeq, step.enzymes.join(','), step.fragSelect);
-
-              products.push({
-                  name: step.output,
-                  sequence: product
-              });
+                const dnaSeq = lookupSequence(step.dna);
+                const product = digest(dnaSeq, step.enzymes.join(','), step.fragselect);
+                // Since digest now returns a real Polynucleotide object, use it directly
+                const polyObj = product;
+                products.push({
+                    name: step.output,
+                    sequence: polyObj.sequence
+                });
             }
             break;
 
             case 'Transform': {
                 const dnaSeq = lookupSequence(step.dna);
-
                 // TODO: Add real transformation simulation logic here
-                const product = dnaSeq;
-
+                // dnaSeq is already a Polynucleotide, so store its .sequence
                 products.push({
                     name: step.output,
-                    sequence: product
+                    sequence: dnaSeq.sequence
                 });
             }
             break;

@@ -1,7 +1,40 @@
-// C6-Annotator.js - Improved DNA Autoannotation and Transcription Inference Library for Web
+// C6-Annotator.js - DNA Autoannotation and Expression Inference
+//
+// Philosophical Basis:
+// This system models biological sequence annotations through a central dogma lens:
+// Features are classified by biological stage:
+// - dnaFeatures: Regulatory or structural genomic elements (e.g., promoters, operators, terminators)
+// - rnaFeatures: Elements present in the transcribed RNA product (e.g., RBS, riboswitches, UTRs)
+// - cdsFeatures: Open reading frames translated into proteins
+//
+// This classification is a pragmatic subset derived from principles seen in established biological ontologies
+// (e.g., SO: Sequence Ontology), but is simplified for synthetic biology circuit modeling.
+// In particular, the TU (Transcriptional Unit) abstraction models the logical transcription output of a promoter:
+// - Starts immediately after the promoter
+// - Ends at the terminator
+// - Includes RNA-relevant features but not the promoter or terminator themselves
+//
+// Promoters and terminators are boundary markers but not included in the TU's internal features[] list.
+// Although parts of promoters and terminators are technically transcribed, this model omits spacer regions
+// and focuses on logical, design-relevant transcriptional content.
+//
+// Future extensions to this system may map additional feature types from broader ontologies
+// into these bins without disrupting the core logic.
 
 import { cleanup, revcomp, translate } from './C6-Seq.js';
 
+// Feature Ontology Bins:
+const dnaFeatures = new Set([
+  'promoter', 'operator', 'enhancer', 'silencer', 'recombination_site', 'insulator', 'terminator'
+]);
+
+const rnaFeatures = new Set([
+  'rbs', 'kozak', 'riboswitch', 'intron', 'exon', 'utr', 'polyA_signal'
+]);
+
+const cdsFeatures = new Set([
+  'cds'
+]);
 
 // Pre-index features by k-mers for fast lookup
 function buildFeatureIndex(features, k = 10) {
@@ -69,9 +102,9 @@ function inferTranscriptionalUnits(features) {
   const openTUs = [];
 
   const allowedTypes = new Set([
-    'promoter', 'cds', 'terminator', 'rbs', 'kozak', 'polyA_signal',
-    'intron', 'exon', 'utr', 'recombination_site', 'operator', 'enhancer',
-    'silencer', 'riboswitch', 'insulator'
+    ...dnaFeatures,
+    ...rnaFeatures,
+    ...cdsFeatures
   ]);
 
   for (const feature of featureList) {
@@ -89,9 +122,9 @@ function inferTranscriptionalUnits(features) {
       });
     }
 
-    // Add feature to all open TUs
+    // Add feature to all open TUs, but skip DNA-only features
     openTUs.forEach(tu => {
-      if (feature.start >= tu.start) {
+      if (feature.start >= tu.start && !dnaFeatures.has(type)) {
         tu.features.push(feature);
         // console.log(`➕ Assigned feature ${feature.label} (${feature.type}) to TU started by ${tu.promoter.label}`);
       }
@@ -116,7 +149,7 @@ function inferTranscriptionalUnits(features) {
 
 
 // Infer expressed proteins from TUs
-function inferExpressedProteins(sequence, tus) {
+function inferExpressedProteins(tus) {
   const proteins = [];
 
   tus.forEach((tu, index) => {
