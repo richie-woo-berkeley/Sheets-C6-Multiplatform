@@ -9,7 +9,23 @@
 
 ## 🚀 Overview
 
-C6 is a comprehensive library for parsing, simulating, and analyzing DNA construction workflows. It supports a range of synthetic biology operations and automates reasoning about transcriptional structure and expression.
+C6 is a JavaScript toolkit for simulating recombinant DNA workflows. It supports both browser-based and Node.js-based execution environments, enabling use in web applications, teaching tools, or backend design pipelines.
+
+The central abstraction in C6 is the **Construction File (CF)** — a stepwise text specification describing a DNA assembly plan using PCR, restriction digest, Gibson assembly, Golden Gate cloning, transformation, and other procedures. C6 parses CFs into structured instructions and simulates the resulting chemical outcomes using modeled reactions.
+The Construction File format is introduced in [Anderson et al., 2023](https://pubmed.ncbi.nlm.nih.gov/37956196/), which provides the conceptual foundation for this abstraction.
+
+C6 models DNA molecules using a `Polynucleotide` abstraction that reflects the physical and chemical properties of DNA fragments used in recombinant DNA procedures. This includes parameters such as strandedness (single or double), topology (linear or circular), RNA vs DNA, and 5′/3′ overhangs or modifications. Helper constructors are provided for common cases (e.g., `dsDNA`, `oligo`, `plasmid`), but the `Polynucleotide` class itself generalizes any linear or circular molecule encountered in assembly workflows.
+
+Beyond simulation, C6 includes design and verification tools:
+
+- Oligo design utilities for standard assembly schemes (e.g., BioBrick, MoClo, BglBrick, RBSLib)
+- Annotation and inference tools that map known features to sequences, group them into transcriptional units (TUs), and infer which CDS elements are likely expressed
+- Sequence manipulation utilities for reverse complementation, melting temperature, self-complementarity checks, and more
+
+
+C6 focuses on modeling the chemical logic of molecular biology protocols rather than abstract logic of synthetic circuits. It is useful for applications involving validation, verification, or generation of DNA designs in formats that correspond closely to wet-lab workflows and in vitro molecular biology techniques.
+
+C6 is not a compositional design tool. It does not attempt to optimize or select parts for a genetic circuit, metabolic pathway, or regulatory network. Instead, it assumes a design has already been made and focuses on the molecular construction strategy that will realize it. It verifies that a Construction File is syntactically well-formed, chemically coherent, and capable of producing the intended DNA product in silico. It also provides limited analysis of potential gene expression from the resulting constructs. While C6 does not yet generate detailed wet-lab protocols or robotic instructions, it offers a foundation for that by providing precise modeling of DNA species and cloning operations.
 
 ---
 
@@ -26,17 +42,18 @@ Or load via CDN:
 ```
 
 ---
+## 🧪 Quickstart
 
-## 🧪 Quickstart Example
+You can use C6 to simulate recombinant DNA steps in Node.js or in the browser.
 
 ```javascript
 import C6 from 'c6-sim';
 
 const cfText = `
-PCR Fwd Rev on Template, Product
-oligo Fwd ATGCGT
-oligo Rev TACGCA
-plasmid Template ATGCGTACGCATAGC
+PCR Fwd Rev Template Product
+oligo Fwd CAAGTGGGAACGCGTAATG
+oligo Rev CGGTCACGGCACCACCATC
+plasmid Template TTCAAGTGGGAACGCGTAATGAATTTTGAAGATGGTGGTGCCGTGACCG
 `;
 
 const cf = C6.parseCF(cfText);
@@ -46,67 +63,13 @@ console.log(result);
 
 ---
 
-## 🔧 Core Capabilities
+## 🌐 Interactive Demo
 
-### Construction File Simulation
+You can try the toolkit in your browser using the hosted demo:
 
-C6 can simulate PCR, Gibson Assembly, Golden Gate, ligation, and transformation:
+👉 [**C6 Interactive Demo**](https://ucb-bioe-anderson-lab.github.io/C6-Multiplatform)
 
-```js
-const cfText = `
-GoldenGate oF oR on Vector, Digest
-Gibson Digest Insert, Product
-Transform Product into Mach1 with Amp, Colony
-`;
-
-const cf = C6.parseCF(cfText);
-const result = C6.simCF(cf);
-```
-
----
-
-### Feature Annotation
-
-Automatically detect annotated elements in DNA sequences:
-
-```js
-const features = C6.annotateSequenceSmart("ATGAGTGAAGAGAGGAGAAATACTAGATGGCGTCT...");
-console.log(features); // List of features with type, label, and position
-```
-
----
-
-### Transcriptional Unit Inference
-
-Predict transcriptional structure from annotated features:
-
-```js
-const tus = C6.inferTranscriptionalUnits(features);
-console.log(tus);
-```
-
----
-
-### Protein Expression Inference
-
-Identify which CDSs are likely expressed:
-
-```js
-const expressed = C6.inferExpressedProteins(tus);
-console.log(expressed);
-```
-
----
-
-### Utilities
-
-Handy tools for formatting and data extraction:
-
-```js
-C6.merge("5'", "ATG", "CTG", "3'", ".");
-C6.makeJSON([["name", "G00101"], ["seq", "ATGC"]]);
-C6.field('{"name":"G00101"}', "name"); // → "G00101"
-```
+This includes CF simulation, annotation, and expression inference in a no-install playground.
 
 ---
 
