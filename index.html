@@ -3,9 +3,153 @@
 <head>
   <meta charset="UTF-8">
   <title>C6 Multiplatform Demo</title>
+  <script src="https://cdn.jsdelivr.net/npm/c6-sim@1.0.9/dist/c6-sim.min.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 2em;
+      line-height: 1.6;
+    }
+    pre {
+      background: #f4f4f4;
+      padding: 1em;
+      overflow-x: auto;
+    }
+    .section {
+      border-top: 1px solid #ccc;
+      margin-top: 2em;
+      padding-top: 1em;
+    }
+  </style>
 </head>
 <body>
-  <h1>C6 Multiplatform</h1>
-  <p>If you're seeing this page, GitHub Pages is working correctly.</p>
+  <h1>C6 Multiplatform Demo</h1>
+  <p>
+    C6 is a JavaScript-based synthetic biology toolkit for modeling, designing, and simulating DNA construction strategies.
+    It provides functionality for sequence manipulation, cloning simulation, annotation, oligo design, and more.
+    This demo site illustrates how to use each part of the C6 library in live browser-based code.
+  </p>
+
+  <div class="section">
+    <h2>C6-Seq: Sequence Utilities</h2>
+    <p>Functions for cleaning, validating, reversing, and analyzing DNA sequences, as well as representing DNA molecules as structured objects that include strandedness, end chemistries, and circularity.</p>
+    <h3>Example</h3>
+    <pre><code>// Example: Clean a DNA sequence
+const cleaned = C6.cleanup("4201 ACAACCCCAA GGACCGCGCC");
+console.log(cleaned);</code></pre>
+    <p><em>Output will appear in the browser console.</em></p>
+
+    <h3>Live Examples</h3>
+
+    <div id="c6seq_code">
+      <pre><code id="c6seq_readonly" class="language-js">
+// Clean up and validate a DNA sequence
+const cleaned = C6.cleanup("4201 ACAACCCCAA GGACCGCGCC");
+console.log("Cleaned:", cleaned);
+
+// Reverse complement
+const rev = C6.revcomp("ACAACCCCAA");
+console.log("Reverse complement:", rev);
+
+// GC content
+const gc = C6.gccontent("ACAACCCCAA");
+console.log("GC content:", gc);
+
+// Base balance
+const balance = C6.basebalance("ACAACCCCAA");
+console.log("Base balance:", balance);
+
+// Max repeat
+const repeat = C6.maxrepeat("AAACCCGGGTTT");
+console.log("Max repeat:", repeat);
+
+// Palindromic check
+console.log("AATT is palindromic?", C6.isPalindromic("AATT"));
+
+// Translate
+console.log("Translated protein:", C6.translate("ATGGAGAACTAGGGTCTC"));
+
+// Instantiating a double stranded circular plasmid as a Polynucleotide:
+const plasmid1 = C6.plasmid("ACAACCCCAA");
+console.log("Plasmid object:", plasmid1);
+
+// Instantiating a single stranded linear oligo as a Polynucleotide:
+const oligo1 = C6.oligo("ACAACCCCAA");
+console.log("Oligo object:", oligo1);
+
+// Instantiating a double stranded linear DNA:
+const dsdna1 = C6.dsDNA("ACAACCCCAA");
+console.log("dsDNA object:", dsdna1);
+
+// Instantiating a double stranded linear DNA with sticky ends:
+const sticky = C6.polynucleotide("ACAACCCCAA", "GATC", "-TGCA", true, false, false, "", "");
+console.log("Sticky-Ended DNA object:", sticky);
+
+
+  </code></pre>
+      <button onclick="openC6SeqEditor()">Try It</button>
+      <div id="c6seq_editor" style="display:none;">
+        <textarea id="c6seq_code_area" rows="14" cols="80"></textarea><br>
+        <button onclick="runC6SeqDemo()">Run</button>
+        <button onclick="resetC6SeqDemo()">Reset</button>
+        <pre><code id="c6seq_output"></code></pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>C6-Oligos: Oligonucleotide Design</h2>
+    <p>Design primers and oligos for cloning strategies including BglBrick and Golden Gate.</p>
+  </div>
+
+  <div class="section">
+    <h2>C6-Sim: Construction Simulation</h2>
+    <p>Run full molecular simulations of cloning workflows defined in Construction Files (CFs).</p>
+  </div>
+
+  <div class="section">
+    <h2>C6-Annotator: Feature Detection</h2>
+    <p>Annotate sequences with biological features and infer transcriptional units and expression.</p>
+  </div>
+
+  <div class="section">
+    <h2>C6-Utils: Utilities</h2>
+    <p>General-purpose JSON and string helpers for use across the other modules.</p>
+  </div>
+
+  <div class="section">
+    <h2>Live Demonstration Console</h2>
+    <p>Open your browser console (F12 or Ctrl+Shift+I) to try C6 calls directly.</p>
+  </div>
+
+  <script>
+    const defaultC6SeqCode = document.getElementById("c6seq_readonly").textContent.trim();
+
+    function openC6SeqEditor() {
+      document.getElementById("c6seq_editor").style.display = 'block';
+      document.getElementById("c6seq_code_area").value = defaultC6SeqCode;
+    }
+
+    function runC6SeqDemo() {
+      const output = document.getElementById("c6seq_output");
+      output.textContent = '';
+      try {
+        const code = document.getElementById("c6seq_code_area").value;
+        const originalLog = console.log;
+        console.log = (...args) => {
+          output.textContent += args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ') + '\n';
+        };
+        eval(code);
+        console.log = originalLog;
+      } catch (err) {
+        output.textContent = 'Error: ' + err.message;
+      }
+    }
+
+    function resetC6SeqDemo() {
+      document.getElementById("c6seq_code_area").value = defaultC6SeqCode;
+      document.getElementById("c6seq_output").textContent = '';
+    }
+  </script>
 </body>
 </html>
