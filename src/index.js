@@ -16,4 +16,6 @@ const C6 = {
   ...Utils
 };
 
+C6.VERSION = '1.0.8.2';
+
 export default C6;

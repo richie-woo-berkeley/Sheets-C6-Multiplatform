@@ -206,6 +206,8 @@ function parseCF(...blobs) {
     }
 
     function tokenize(text) {
+        // Remove comments: #, //, /* ... */
+        text = text.replace(/#.*$/g, '').replace(/\/\/.*$/g, '').replace(/\/\*.*?\*\//g, '');
         let tokens = text.trim().split(/\s+/);
         return tokens.filter(token => !["on", "with", ""].includes(token.toLowerCase()));
     }
@@ -219,87 +221,132 @@ function parseCF(...blobs) {
     const steps = [];
     const sequences = {};
 
-    for (const tokens of preprocessedData) {
+    for (let i = 0; i < preprocessedData.length; i++) {
+        const tokens = preprocessedData[i];
         if (tokens.length === 0) continue;
+        try {
+            const keywordRaw = tokens[0];
+            const keyword = keywordRaw.toLowerCase();
+            const normalizedOp = normalizeOperation[keyword];
 
-        const keywordRaw = tokens[0];
-        const keyword = keywordRaw.toLowerCase();
-        const normalizedOp = normalizeOperation[keyword];
+            if (normalizedOp) {
+                let step = { operation: normalizedOp };
 
-        if (normalizedOp) {
-            let step = { operation: normalizedOp };
-
-            switch (normalizedOp) {
-                case "PCR":
-                    step.output = tokens[4];
-                    step.forward_oligo = tokens[1];
-                    step.reverse_oligo = tokens[2];
-                    step.template = tokens[3];
-                    break;
-
-                case "Gibson":
-                    step.output = tokens[tokens.length - 1];
-                    step.dnas = tokens.slice(1, tokens.length - 1);
-                    break;
-                    
-                case "GoldenGate":
-                    step.output = tokens[tokens.length - 1];
-                    step.dnas = tokens.slice(1, tokens.length - 2);
-                    step.enzyme = tokens[tokens.length - 2];
-                    break;
-
-                case "Ligate":
-                    step.output = tokens[tokens.length - 1];
-                    step.dnas = tokens.slice(1, tokens.length - 1);
-                    break;
-
-                case "Digest":
-                    // Simplified parsing for Digest step as requested
-                    step.dna = tokens[1];
-                    step.enzymes = tokens[2].split(',');
-                    step.fragselect = tokens[3] ? parseInt(tokens[3], 10) : null;
-                    step.output = tokens[tokens.length - 1];
-                    break;
-
-                case "Transform":
-                    step.output = tokens[4];
-                    step.dna = tokens[1];
-                    step.strain = tokens[2];
-                    step.antibiotics = tokens[3];
-                    step.temperature = parseFloat(tokens[5]);
-                    break;
-            }
-
-            steps.push(step);
-        } else {
-            let name, sequence;
-            if (knownTypes.includes(keyword)) {
-                name = tokens[1];
-                sequence = tokens.slice(2).join('');
-            } else {
-                name = tokens[0];
-                sequence = tokens.slice(1).join('');
-            }
-
-            if (sequenceDataRegex.test(sequence)) {
-                switch (keyword) {
-                    case "plasmid":
-                        sequences[name] = plasmid(sequence.toUpperCase());
+                switch (normalizedOp) {
+                    case "PCR":
+                        // Check token count for PCR
+                        if (tokens.length < 5) {
+                            throw new Error("PCR step requires 5 fields: PCR ForwardPrimer ReversePrimer Template Output");
+                        }
+                        step.output = tokens[4];
+                        step.forward_oligo = tokens[1];
+                        step.reverse_oligo = tokens[2];
+                        step.template = tokens[3];
                         break;
-                    case "oligo":
-                        sequences[name] = oligo(sequence.toUpperCase());
+
+                    case "Gibson":
+                        if (tokens.length < 3) {
+                            throw new Error("Gibson step requires at least 3 fields: Gibson Fragment1 [Fragment2 ...] Output");
+                        }
+                        step.output = tokens[tokens.length - 1];
+                        step.dnas = tokens.slice(1, tokens.length - 1);
                         break;
-                    case "dsdna":
-                        sequences[name] = dsDNA(sequence.toUpperCase());
+
+                    case "GoldenGate":
+                        if (tokens.length < 4) {
+                            throw new Error("GoldenGate step requires at least 4 fields: GoldenGate Fragment1 [Fragment2 ...] Enzyme Output");
+                        }
+                        step.output = tokens[tokens.length - 1];
+                        step.dnas = tokens.slice(1, tokens.length - 2);
+                        step.enzyme = tokens[tokens.length - 2];
                         break;
-                    default:
-                        sequences[name] = oligo(sequence.toUpperCase()); // default to oligo
+
+                    case "Ligate":
+                        if (tokens.length < 3) {
+                            throw new Error("Ligate step requires at least 3 fields: Ligate Fragment1 [Fragment2 ...] Output");
+                        }
+                        step.output = tokens[tokens.length - 1];
+                        step.dnas = tokens.slice(1, tokens.length - 1);
+                        break;
+
+                    case "Digest":
+                        // Check token count for Digest
+                        if (tokens.length < 4) {
+                            throw new Error("Digest step requires at least 4 fields: Digest DNA Enzymes FragSelect Output");
+                        }
+                        step.dna = tokens[1];
+                        step.enzymes = tokens[2].split(',');
+                        step.fragselect = tokens[3] ? parseInt(tokens[3], 10) : 1;
+                        step.output = tokens[tokens.length - 1];
+                        break;
+
+                    case "Transform":
+                        step.dna = tokens[1];
+                        step.output = tokens[tokens.length - 1];
+
+                        const remaining = tokens.slice(2, tokens.length - 1);
+
+                        const knownAntibiotics = {
+                          "kan": "kan",
+                          "kanamycin": "kan",
+                          "cam": "cam",
+                          "chloramphenicol": "cam",
+                          "amp": "amp",
+                          "ampicillin": "amp",
+                          "spec": "spec",
+                          "spectinomycin": "spec",
+                          "gen": "gen",
+                          "gentamicin": "gen"
+                        };
+
+                        for (const token of remaining) {
+                          const lower = token.toLowerCase();
+                          if (!step.strain && /^[\w\-\.]+$/.test(token)) {
+                            step.strain = token;
+                          } else if (!step.antibiotics && knownAntibiotics[lower]) {
+                            step.antibiotics = knownAntibiotics[lower];
+                          } else if (!step.temperature && !isNaN(parseFloat(token))) {
+                            step.temperature = parseFloat(token);
+                          }
+                        }
                         break;
                 }
+
+                steps.push(step);
+            } else {
+                let name, sequence;
+                if (knownTypes.includes(keyword)) {
+                    name = tokens[1];
+                    sequence = tokens.slice(2).join('');
+                } else {
+                    name = tokens[0];
+                    sequence = tokens.slice(1).join('');
+                }
+
+                if (sequenceDataRegex.test(sequence)) {
+                    switch (keyword) {
+                        case "plasmid":
+                            sequences[name] = plasmid(sequence.toUpperCase());
+                            break;
+                        case "oligo":
+                            sequences[name] = oligo(sequence.toUpperCase());
+                            break;
+                        case "dsdna":
+                            sequences[name] = dsDNA(sequence.toUpperCase());
+                            break;
+                        default:
+                            sequences[name] = oligo(sequence.toUpperCase());
+                            break;
+                    }
+                } else {
+                    throw new Error(`Invalid sequence format: "${sequence}"`);
+                }
             }
+        } catch (err) {
+            throw new Error(`Error parsing line ${i + 1}: "${preprocessedData[i].join(' ')}"\nReason: ${err.message}`);
         }
     }
-
+    console.log("parseCF returning CF")
     return { steps, sequences };
 }
 
@@ -362,6 +409,8 @@ function PCR(forwardOligo, reverseOligo, template) {
 
   // Concatenate entire forward oligo, region between annealing regions on rotated template, and entire reverse complement of reverse oligo
   var finalProduct = forwardSeq + rotatedTemplate.slice(18, reverseMatchIndex) + reverseComp;
+
+  console.log("PCR returning product")
 
   // Wrap result as a double-stranded DNA polynucleotide
   return dsDNA(finalProduct);
@@ -815,6 +864,8 @@ function gibson(polynucleotides, check_circular = true) {
       return dsDNA(forwardStrand);
     }
   }
+
+  console.log("Gibson returning product")
 
   const circularSeq = forwardStrand.slice(firstIndex, forwardStrand.length - HOMOLOGY_LENGTH);
   return plasmid(circularSeq);
