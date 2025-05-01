@@ -7,7 +7,7 @@
 
 ---
 
-## 🚀 Overview
+## Overview
 
 C6 is a JavaScript toolkit for simulating recombinant DNA workflows. It supports both browser-based and Node.js-based execution environments, enabling use in web applications, teaching tools, or backend design pipelines.
 
@@ -29,7 +29,7 @@ C6 is not a compositional design tool. It does not attempt to optimize or select
 
 ---
 
-## 📦 Installation
+## Installation
 
 ```bash
 npm install c6-sim
@@ -42,7 +42,7 @@ Or load via CDN:
 ```
 
 ---
-## 🧪 Quickstart
+## Quickstart
 
 You can use C6 to simulate recombinant DNA steps in Node.js or in the browser.
 
@@ -63,7 +63,7 @@ console.log(result);
 
 ---
 
-## 🌐 Interactive Demo
+## Interactive Demo
 
 You can try the toolkit in your browser using the hosted demo:
 
@@ -73,7 +73,7 @@ This includes CF simulation, annotation, and expression inference in a no-instal
 
 ---
 
-## 🧪 Running Tests
+## Running Tests
 
 This project uses [Vitest](https://vitest.dev):
 
@@ -85,12 +85,12 @@ Test coverage includes core simulation, sequence utilities, oligo design, and ge
 
 ---
 
-## 📚 Repository
+## Repository
 
 [GitHub – UCB BioE Anderson Lab](https://github.com/UCB-BioE-Anderson-Lab/C6-Multiplatform)
 
 ---
 
-## 🧬 License
+## License
 
 MIT License © University of California, Berkeley
