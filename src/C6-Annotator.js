@@ -59,7 +59,7 @@ function buildFeatureIndex(features, k = 10) {
 }
 
 // Smart matching using full exact matching (no k-mer seeding)
-function annotateSequenceSmart(sequence, featureDb = null) {
+function annotateSequence(sequence, featureDb = null) {
   //   console.log("🔍 Starting annotation...");
   sequence = cleanup(sequence);
   const detectedFeatures = [];
@@ -207,7 +207,7 @@ let featureDbGlobal = [];
 })();
 
 export {
-  annotateSequenceSmart,
+  annotateSequence,
   inferTranscriptionalUnits,
   inferExpressedProteins,
   findNonExpressedCDS,

@@ -1,6 +1,6 @@
 {
   "name": "c6-sim",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "description": "Multiplatform molecular biology construction simulator",
   "type": "module",
   "main": "dist/c6-sim.min.js",

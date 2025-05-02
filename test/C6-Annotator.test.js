@@ -1,12 +1,12 @@
-import { annotateSequenceSmart, inferTranscriptionalUnits, inferExpressedProteins, findNonExpressedCDS } from 'src/C6-Annotator.js';
+import { annotateSequence, inferTranscriptionalUnits, inferExpressedProteins, findNonExpressedCDS } from 'src/C6-Annotator.js';
 
 describe('C6-Annotator basic tests', () => {
-  test('annotateSequenceSmart finds T7 promoter', async () => {
+  test('annotateSequence finds T7 promoter', async () => {
     const fakeFeatureDb = [
       { Name: 'T7 Promoter', Sequence: 'TAATACGACTCACTATAGGG', Type: 'promoter', Color: '#ff0000' }
     ];
     const sequence = 'GAAATTAATACGACTCACTATAGGGGAAT';
-    const annotations = annotateSequenceSmart(sequence, fakeFeatureDb);
+    const annotations = annotateSequence(sequence, fakeFeatureDb);
 
     expect(annotations.length).toBeGreaterThan(0);
     expect(annotations[0].label).toBe('T7 Promoter');
