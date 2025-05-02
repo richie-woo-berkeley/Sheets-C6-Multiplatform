@@ -33,11 +33,6 @@
   <div class="section">
     <h2>C6-Seq: Sequence Utilities</h2>
     <p>Functions for cleaning, validating, reversing, and analyzing DNA sequences, as well as representing DNA molecules as structured objects that include strandedness, end chemistries, and circularity.</p>
-    <h3>Example</h3>
-    <pre><code>// Example: Clean a DNA sequence
-const cleaned = C6.cleanup("4201 ACAACCCCAA GGACCGCGCC");
-console.log(cleaned);</code></pre>
-    <p><em>Output will appear in the browser console.</em></p>
 
     <h3>Live Examples</h3>
 
@@ -101,10 +96,6 @@ console.log("Sticky-Ended DNA object:", sticky);
     <h2>C6-Oligos: Oligonucleotide Design</h2>
     <p>Functions for designing and evaluating oligonucleotides for synthetic biology applications, including support for standards like BioBrick, BglBrick, MoClo, and more.</p>
 
-    <h3>Example</h3>
-    <pre><code>// Example: Calculate melting temperature (Tm) of an oligo
-const tm = C6.calculateTm("ATGCATGTAAGTAATTTTAC");
-console.log("Tm:", tm);</code></pre>
 
     <h3>Live Examples</h3>
     <div id="c6oligos_code">
@@ -251,14 +242,19 @@ console.log("Non-expressed CDS:", missing);
     </div>
   </div>
 
-  <div class="section">
-    <h2>C6-Utils: Utilities</h2>
-    <p>General-purpose JSON and string helpers for use across the other modules.</p>
-  </div>
+  <!-- C6-Utils: Utilities section removed -->
 
-  <div class="section">
-    <h2>Live Demonstration Console</h2>
-    <p>Open your browser console (F12 or Ctrl+Shift+I) to try C6 calls directly.</p>
+  <div style="background: #eef9ff; border-left: 6px solid #3399ff; padding: 1em; margin-top: 3em;">
+    <h2 style="margin-top: 0;">🔬 Live Demonstration Console</h2>
+    <p>
+      Open your browser console (press <strong>F12</strong> or <strong>Ctrl+Shift+I</strong>) to interact with the C6 library directly.
+      All C6 modules are accessible via the global <code>C6</code> object.
+    </p>
+    <p>
+      Try commands like:
+      <pre><code>console.log(C6.revcomp("ATGC"));</code></pre>
+      <pre><code>console.log(C6.plasmid("ACAACCCCAA"));</code></pre>
+    </p>
   </div>
 
   <script>
