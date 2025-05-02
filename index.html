@@ -99,7 +99,51 @@ console.log("Sticky-Ended DNA object:", sticky);
 
   <div class="section">
     <h2>C6-Oligos: Oligonucleotide Design</h2>
-    <p>Design primers and oligos for cloning strategies including BglBrick and Golden Gate.</p>
+    <p>Functions for designing and evaluating oligonucleotides for synthetic biology applications, including support for standards like BioBrick, BglBrick, MoClo, and more.</p>
+
+    <h3>Example</h3>
+    <pre><code>// Example: Calculate melting temperature (Tm) of an oligo
+const tm = C6.calculateTm("ATGCATGTAAGTAATTTTAC");
+console.log("Tm:", tm);</code></pre>
+
+    <h3>Live Examples</h3>
+    <div id="c6oligos_code">
+      <pre><code id="c6oligos_readonly" class="language-js">
+// Check if valid oligo
+console.log("Valid oligo?", C6.isValidOligo("ATGCATGTAAGTAA"));
+
+// Calculate Tm
+console.log("Tm:", C6.calculateTm("ATGCATGTAAGTAATTTTAC"));
+
+// Check self-complementarity
+console.log("Self-complementary?", C6.hasSelfComplementarity("ATGCATGTAAGTAATTTTAC"));
+
+// Design oligo with restriction site
+console.log("Oligo:", C6.designOligo("ATGCATGTAAGTAATTTTAC", "GAATTC"));
+
+// Score anneal
+console.log("Score:", C6.scoreanneal("GGCCATGCATGTAAGTA", "ATGTAAGTA").score);
+
+// Find anneal position
+console.log("Anneal position:", C6.findanneal("GGCCATGCATGTAAGTA", "ATGTAAGTA").position);
+
+// MoClo oligo
+console.log("MoClo oligo:", C6.moclo("ATGCATGTAAGTAATTTTAC"));
+
+// BioBrick synthesis
+console.log("BioBrick gene:", C6.biobrick("ATGCATGTAAGTAATTTTACAGCTGGATTGCT"));
+
+// Gibson junction
+console.log("GeneJoin oligo:", C6.genejoin("ATGCATGTAAGTAATTTTAC"));
+      </code></pre>
+      <button onclick="openC6OligosEditor()">Try It</button>
+      <div id="c6oligos_editor" style="display:none;">
+        <textarea id="c6oligos_code_area" rows="16" cols="80"></textarea><br>
+        <button onclick="runC6OligosDemo()">Run</button>
+        <button onclick="resetC6OligosDemo()">Reset</button>
+        <pre><code id="c6oligos_output"></code></pre>
+      </div>
+    </div>
   </div>
 
   <div class="section">
@@ -149,6 +193,35 @@ console.log("Sticky-Ended DNA object:", sticky);
     function resetC6SeqDemo() {
       document.getElementById("c6seq_code_area").value = defaultC6SeqCode;
       document.getElementById("c6seq_output").textContent = '';
+    }
+
+    // C6-Oligos interactive section
+    const defaultC6OligosCode = document.getElementById("c6oligos_readonly").textContent.trim();
+
+    function openC6OligosEditor() {
+      document.getElementById("c6oligos_editor").style.display = 'block';
+      document.getElementById("c6oligos_code_area").value = defaultC6OligosCode;
+    }
+
+    function runC6OligosDemo() {
+      const output = document.getElementById("c6oligos_output");
+      output.textContent = '';
+      try {
+        const code = document.getElementById("c6oligos_code_area").value;
+        const originalLog = console.log;
+        console.log = (...args) => {
+          output.textContent += args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ') + '\n';
+        };
+        eval(code);
+        console.log = originalLog;
+      } catch (err) {
+        output.textContent = 'Error: ' + err.message;
+      }
+    }
+
+    function resetC6OligosDemo() {
+      document.getElementById("c6oligos_code_area").value = defaultC6OligosCode;
+      document.getElementById("c6oligos_output").textContent = '';
     }
   </script>
 </body>
