@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>C6 Multiplatform Demo</title>
-  <script src="https://cdn.jsdelivr.net/npm/c6-sim@1.0.9/dist/c6-sim.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/c6-sim@1.0.10/dist/c6-sim.min.js"></script>
   <style>
     body {
       font-family: sans-serif;
@@ -109,32 +109,36 @@ console.log("Tm:", tm);</code></pre>
     <h3>Live Examples</h3>
     <div id="c6oligos_code">
       <pre><code id="c6oligos_readonly" class="language-js">
-// Check if valid oligo
-console.log("Valid oligo?", C6.isValidOligo("ATGCATGTAAGTAA"));
+// BglBrick oligos
+const orf = "atgcatgtaagtaattttacagctggattgctattacttgtaatagcatttggcggaacataa";
+console.log("BglBrick Forward:", C6.bglbrick(orf, 'F'));
+console.log("BglBrick Reverse:", C6.bglbrick(orf, 'R'));
 
-// Calculate Tm
-console.log("Tm:", C6.calculateTm("ATGCATGTAAGTAATTTTAC"));
+// BioBrick oligos
+console.log("BioBrick Forward:", C6.biobrick(orf, true, 'F'));
+console.log("BioBrick Reverse:", C6.biobrick(orf, true, 'R'));
 
-// Check self-complementarity
-console.log("Self-complementary?", C6.hasSelfComplementarity("ATGCATGTAAGTAATTTTAC"));
+// MoClo oligos
+const ptet = "tccctatcagtgatagagattgacatccctatcagtgatagagatactgagcac";
+console.log("MoClo Forward:", C6.moclo(ptet, 'P', 'F'));
+console.log("MoClo Reverse:", C6.moclo(ptet, 'P', 'R'));
 
-// Design oligo with restriction site
-console.log("Oligo:", C6.designOligo("ATGCATGTAAGTAATTTTAC", "GAATTC"));
+// Genejoin oligo
+console.log("Genejoin Forward:", C6.genejoin(ptet, orf, 'F'));
 
-// Score anneal
-console.log("Score:", C6.scoreanneal("GGCCATGCATGTAAGTA", "ATGTAAGTA").score);
+// PCA synthesis oligos
+const pcaseq = "ccataGAATTCATGCCGTCTGGTCGGCCACTGGGGCACCACCCCGGGCCTGAACTTCCTTCTCGCCCACATCAACCGCCTGATCGCCGATCACCAGCAGAACACCGTGTTCATCATGGGTCCTGGCCACGGCGGCCCCGGATCCatcag";
+console.log("PCA oligos:", C6.pca(pcaseq));
 
-// Find anneal position
-console.log("Anneal position:", C6.findanneal("GGCCATGCATGTAAGTA", "ATGTAAGTA").position);
+// LCA synthesis oligos
+const lcaseq = "ccataGAATTCATGCCGTCTGGTCGGCCACTGGGGCACATACACCCCGGTATGCCTGAACTTCCTTCTCGCCATACACATCAACCGCCTGATCGCCGATCACCAGCAGAACACCGTGTTCATCATGGGTCCTGGCCACGGCGGCCCCTAAGGATCCcatag";
+console.log("LCA oligos:", C6.lca(lcaseq));
 
-// MoClo oligo
-console.log("MoClo oligo:", C6.moclo("ATGCATGTAAGTAATTTTAC"));
-
-// BioBrick synthesis
-console.log("BioBrick gene:", C6.biobrick("ATGCATGTAAGTAATTTTACAGCTGGATTGCT"));
-
-// Gibson junction
-console.log("GeneJoin oligo:", C6.genejoin("ATGCATGTAAGTAATTTTAC"));
+// RBS library
+const glgS = "atggatcatagtcttaattctttaaataatttcgatttcctggcgcgtagttttgccagaatgcacgcagaaggtcgcccggtcgatattctggccgttactggtaacatggatgaagaacatagaacctggttttgcgcacgttatgcctggtattgtcaacagatgatgcaggcaagagagctggagttagagcactga";
+const utr = "gccttaaaaggtatgcgataaccggaggatgtgctt";
+console.log("RBS Library Forward:", C6.rbslib(glgS, utr, 'F'));
+console.log("RBS Library Reverse:", C6.rbslib(glgS, utr, 'R'));
       </code></pre>
       <button onclick="openC6OligosEditor()">Try It</button>
       <div id="c6oligos_editor" style="display:none;">
@@ -149,6 +153,69 @@ console.log("GeneJoin oligo:", C6.genejoin("ATGCATGTAAGTAATTTTAC"));
   <div class="section">
     <h2>C6-Sim: Construction Simulation</h2>
     <p>Run full molecular simulations of cloning workflows defined in Construction Files (CFs).</p>
+    <h3>Live Examples</h3>
+    <div id="c6sim_code">
+      <pre><code id="c6sim_readonly" class="language-js">
+// PCR simulation
+const fwd = C6.oligo("gacttGAATTCgcggccgctTCTAGAgTCCCTATCAGTGATAGAG");
+const rev = C6.oligo("catcaACTAGTaGTGCTCAGTATCTCTATCAC");
+const tmpl = C6.plasmid("tccctatcagtgatagagattgacatccctatcagtgatagagatactgagcac");
+console.log("PCR product:", C6.PCR(fwd, rev, tmpl));
+
+// Golden Gate Assembly
+const frag1 = C6.dsDNA("ccaaaGGTCTCAGCTTTGATCGATTCAACCTACTTCCCCTTCATAATCGGTACTAGAGACCacgac");
+const frag2 = C6.dsDNA("GGTCTCATACTCAAAATTTACTGACTGGACATGGTCACCACTTAAGTAAGCTTTGAGACC");
+console.log("GoldenGate product:", C6.goldengate([frag1, frag2], "BsaI"));
+
+// Gibson Assembly
+const gfrag1 = C6.dsDNA("TTGGGTGCACGAGTGGGTTACatcgaactggatctcaacagcggtaagatccttgagagttttcgccccgaagaacgttttccaatgatgagcacttttaaagttctgctatgtggcgcggtattatcccgtATTGACGCCGGGCAAGAGCAACT");
+const gfrag2 = C6.dsDNA("ATTGACGCCGGGCAAGAGCAACTcggtcgccgcatacactattctcagaatgacttggttgagtactcaccagtcacagaaaagcatcttacggatggcatgacagtaagagaattatgcagtgctgccataaccatgagtgataacactgcggccaacttacttctgacaacgatcggaggaccgaaggagctaaccgcttttttgcacaacATGGGGGATCATGTAACTCg");
+const gfrag3 = C6.dsDNA("ATGGGGGATCATGTAACTCgccttgatcgaaagtaaaagatgctgaagatcagTTGGGTGCACGAGTGGGTTAC");
+console.log("Gibson product:", C6.gibson([gfrag1, gfrag2, gfrag3]));
+
+// Restriction Digest
+const digestTarget = C6.plasmid("AAAAAGAATTCTTTTTTTTTTTTTTTTTTTTTTTTTTTTGGATCCGGGGG");
+const digestResult = C6.digest(digestTarget, ["EcoRI", "BamHI"], 0);
+console.log("Digest product:", digestResult);
+
+// Simulate a full Construction File
+const CF = {
+  steps: [
+    {
+      operation: "PCR",
+      output: "P6",
+      forward_oligo: "P6libF",
+      reverse_oligo: "P6libR",
+      template: "pTP1"
+    },
+    {
+      operation: "GoldenGate",
+      output: "pP6",
+      enzyme: "BsaI",
+      dnas: ["P6"]
+    },
+    {
+      operation: "Transform",
+      dna: "pP6",
+      output: "colonies"
+    }
+  ],
+  sequences: {
+    P6libF: C6.oligo("ccaaaggtctcATTATANNNNNNNNNNNNNNNNNTGTCAANNNNGAacccaggactcctcgaagtcgttcttaagacaac"),
+    P6libR: C6.oligo("cagttGGTCTCAATAATNNNNNNANNNNGTtagtatttctcctcgtctacggttaactgatactc"),
+    pTP1: C6.plasmid("ATTACCGCCTTTGAGTGAGCTGATACCGCTCGCCGCAGCCGAACGACCGAGCGCAGCGAGTCAGTGAGCGAGGAAGCCTGCAATGTCTGCCACGTATCGCCAGATGTTCCAGACTAGAATAAAGAAAAAGGGAGCCCATGGGCTCCCTTAATTTAAAATGGTTGTCTTAAGAACGACTTCTTTACATTTTTGCTTCCGTGTGGTATTATGGGAGCAGTAGGTCTACGGTTAACTGATACTCCCTAATACAGGAGATACTAGATGTCTTATTCAAAGCATGGCATCGTACAAGAAATGAAGACGAAATACCATATGGAAGGCAGTGTCAATGGCCATGAATTTACGATCGAAGGTGTAGGAACTGGGTACCCTTACGAAGGGAAACAGATGTCCGAATTAGTGATCATCAAGCCTGCGGGAAAACCCCTTCCATTCTCCTTTGACATACTGTCATCAGTCTTTCAATATGGAAACCGTTGCTTCACAAAGTACCCGGCAGACATGCCTGACTATTTCAAGCAAGCATTCCCAGATGGAATGTCATATGAAAGGTCATTTCTATTTGAGGATGGAGCAGTTGCTACAGCCAGCTGGAACATTCGACTCGAAGGAAATTGCTTCATCCACAAATCCATCTTTCATGGCGTAAACTTTCCCGCTGATGGACCCGTAATGAAAAAGAAGACCATTGACTGGGATAAGTCCTTCGAAAAAATGACTGTGTCTAAAGAGGTGCTAAGAGGTGACGTGACTATGTTTCTTATGCTCGAAGGAGGTGGTTCTCACAGATGCCAATTTCACTCCACTTACAAAACAGAGAAGCCGGTCACACTGCCCCCGAATCATGTCGTAGAACATCAAATTGTGAGGACCGACCTTGGCCAAAGTGCAAAAGGCTTTACAGTCAAGCTGGAAGCACATGCCGCGGCTCATGTTAACCCTTTGAAGGTTAAATAAGTTCCGGTGGAGCTCCAGCTTTTGTTCCCTTTAGTGAGGGTTAATTGCGCGCTTGGCGGCCGGCTTATCGGTCAGTTTCACCTGATTTACGTAAAAACCCGCTTCGGCGGGTTTTTGCTTTTGGAGGGGCAGAAAGATGAATGACTGTCCACGACGCTATACCCAAAAGAAATGTTCATGGTCATAGCTGTTTCCTGTGTGGTGGTAGATCCTCTACGCCGGACGCATCGTGGCCGGCATCACCGGCGCCACAGGTGCGGTTGCTGGCGCCTATATCGCCGACATCACCCAGAAATCATCCTTAGCGAAAGCTAAGGATTTTTTTTATCTGAAATTCTGCCTCGTGATACGCCTATTTTTATAGGTTAATGTCATGATAATAATGGTTTCTTAGACGTCAGGTGGCACTTTTCGGGGAAATGTGCGCGGAACCCCTATTTGTTTATTTTTCTAAATACATTCAAATATGTATCCGCTCATGAGACAATAACCCTGATAAATGCTTCAATAATATTGAAAAAGGAAGAGTATGAGTATTCAACATTTCCGTGTCGCCCTTATTCCCTTTTTTGCGGCATTTTGCCTTCCTGTTTTTGCTCACCCAGAAACGCTGGTGAAAGTAAAAGATGCTGAAGATCAGTTGGGTGCACGAGTGGGTTACATCGAACTGGATCTCAACAGCGGTAAGATCCTTGAGAGTTTTCGCCCCGAAGAACGTTTTCCAATGATGAGCACTTTTAAAGTTCTGCTATGTGGCGCGGTATTATCCCGTATTGACGCCGGGCAAGAGCAACTCGGTCGCCGCATACACTATTCTCAGAATGACTTGGTTGAGTACTCACCAGTCACAGAAAAGCATCTTACGGATGGCATGACAGTAAGAGAATTATGCAGTGCTGCCATAACCATGAGTGATAACACTGCGGCCAACTTACTTCTGACAACGATCGGAGGACCGAAGGAGCTAACCGCTTTTTTGCACAACATGGGGGATCATGTAACTCGCCTTGATCGTTGGGAACCGGAGCTGAATGAAGCCATACCAAACGACGAGCGTGACACCACGATGCCTGTAGCAATGGCAACAACGTTGCGCAAACTATTAACTGGCGAACTACTTACTCTAGCTTCCCGGCAACAATTAATAGACTGGATGGAGGCGGATAAAGTTGCAGGACCACTTCTGCGCTCGGCCCTTCCGGCTGGCTGGTTTATTGCTGATAAATCTGGAGCCGGTGAGCGTGGCTCTCGCGGTATCATTGCAGCACTGGGGCCAGATGGTAAGCCCTCCCGTATCGTAGTTATCTACACGACGGGGAGTCAGGCAACTATGGATGAACGAAATAGACAGATCGCTGAGATAGGTGCCTCACTGATTAAGCATTGGTAATTTTTTTAAGGCAGTTATTGGTGCCTACTATGGAACTGCCTCGGTGAGTTTTCTCCTTCATTACAGAAACGGCTTTTTCAAAAATATGGTATTGATAATCCTGATATGAATAAATTGCAGTTTCATTTGATGCTCGATGAGTTTTTCTAACTGAACTCTTTACAAATCTAAAATGTTTGTGACTGTATTATAAGAACAGAAATCCCCCTTACACGGAGGCATCAGTGACCAAACAGGAAAAAACCGCCCTTAACATGGCCCGCTTTATCAGAAGCCAGACATTAACGCTTCTGGAGAAACTCAACGAGCTGGACGCGGATGAACAGGCAGACATCTGTGAATCGCTTCACGACCACGCTGATGAGCTTTACCGCAGCTGCCTCGCGCGTTTCGGTGATGACGGTGAAAACCTCTGACACATGCAGCTCCCAGCAAAAGGCCAGGAACCGTAAAAAGGCCGCGTTGCTGGCGTTTTTCCATAGGCTCCGCCCCCCTGACGAGCATCACAAAAATCGACGCTCAAGTCAGAGGTGGCGAAACCCGACAGGACTATAAAGATACCAGGCGTTTCCCCCTGGAAGCTCCCTCGTGCGCTCTCCTGTTCCGACCCTGCCGCTTACCGGATACCTGTCCGCCTTTCTCCCTTCGGGAAGCGTGGCGCTTTCTCATAGCTCACGCTGTAGGTATCTCAGTTCGGTGTAGGTCGTTCGCTCCAAGCTGGGCTGTGTGCACGAACCCCCCGTTCAGCCCGACCGCTGCGCCTTATCCGGTAACTATCGTCTTGAGTCCAACCCGGTAAGACACGACTTATCGCCACTGGCAGCAGCCACTGGTAACAGGATTAGCAGAGCGAGGTATGTAGGCGGTGCTACAGAGTTCTTGAAGTGGTGGCCTAACTACGGCTACACTAGAAGGACAGTATTTGGTATCTGCGCTCTGCTGAAGCCAGTTACCTTCGGAAAAAGAGTTGGTAGCTCTTGATCCGGCAAACAAACCACCGCTGGTAGCGGTGGTTTTTTTGTTTGCAAGCAGCAGATTACGCGCAGAAAAAAAGGATCTCAAGAAGATCCTTTGATCTTTTCTACGGGGTCTGACGCTCAGTGGAACGAAAACTCACGTTAAGGGATTTTGGTCATGAGATTATCAAAAAGGATCTTCACCTAGATCCTTCG")
+  }
+};
+console.log("Simulated CF:", C6.simCF(CF));
+      </code></pre>
+      <button onclick="openC6SimEditor()">Try It</button>
+      <div id="c6sim_editor" style="display:none;">
+        <textarea id="c6sim_code_area" rows="20" cols="80"></textarea><br>
+        <button onclick="runC6SimDemo()">Run</button>
+        <button onclick="resetC6SimDemo()">Reset</button>
+        <pre><code id="c6sim_output"></code></pre>
+      </div>
+    </div>
   </div>
 
   <div class="section">
@@ -222,6 +289,35 @@ console.log("GeneJoin oligo:", C6.genejoin("ATGCATGTAAGTAATTTTAC"));
     function resetC6OligosDemo() {
       document.getElementById("c6oligos_code_area").value = defaultC6OligosCode;
       document.getElementById("c6oligos_output").textContent = '';
+    }
+
+    // C6-Sim interactive section
+    const defaultC6SimCode = document.getElementById("c6sim_readonly").textContent.trim();
+
+    function openC6SimEditor() {
+      document.getElementById("c6sim_editor").style.display = 'block';
+      document.getElementById("c6sim_code_area").value = defaultC6SimCode;
+    }
+
+    function runC6SimDemo() {
+      const output = document.getElementById("c6sim_output");
+      output.textContent = '';
+      try {
+        const code = document.getElementById("c6sim_code_area").value;
+        const originalLog = console.log;
+        console.log = (...args) => {
+          output.textContent += args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ') + '\n';
+        };
+        eval(code);
+        console.log = originalLog;
+      } catch (err) {
+        output.textContent = 'Error: ' + err.message;
+      }
+    }
+
+    function resetC6SimDemo() {
+      document.getElementById("c6sim_code_area").value = defaultC6SimCode;
+      document.getElementById("c6sim_output").textContent = '';
     }
   </script>
 </body>
