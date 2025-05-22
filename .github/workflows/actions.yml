@@ -13,7 +13,7 @@ jobs:
           sparse-checkout: 'src'
 
       - name: Change js to gs
-        run: find /home/repo/src -depth -name "*.js" -exec sh -c 'mv "$1" "${1%.js}.gs"' _ {} \;
+        run: find ~ |less
 
       - name: Push To apps-script Branch
         uses: s0/git-publish-subdir-action@develop
