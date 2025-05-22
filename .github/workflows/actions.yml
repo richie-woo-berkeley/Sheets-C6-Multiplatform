@@ -10,11 +10,8 @@ jobs:
           ref: 'main'
           sparse-checkout: 'src'
 
-      - name: Move to src folder
-        run: cd src
-
       - name: Change js to gs
-        run: mv 's/.js$/.gs/' *.js
+        run: find /src -depth -name "*.js" -exec sh -c 'mv "$1" "${1%.js}.gs"' _ {} \
 
       - name: Push To apps-script Branch
         uses: s0/git-publish-subdir-action@develop
