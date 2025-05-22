@@ -10,7 +10,10 @@ jobs:
           ref: 'main'
           sparse-checkout: 'src'
 
-      - name: Convert .js to .gs
+      - name: Move to src folder
+        run: cd src
+
+      - name: Change js to gs
         run: mv 's/.js$/.gs/' *.js
 
       - name: Push To apps-script Branch
