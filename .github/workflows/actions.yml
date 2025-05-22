@@ -11,7 +11,7 @@ jobs:
           sparse-checkout: 'src'
 
       - name: Convert .js to .gs
-        run: rename 's/.js$/.gs/' *.js
+        run: mv 's/.js$/.gs/' *.js
 
       - name: Push To apps-script Branch
         uses: s0/git-publish-subdir-action@develop
