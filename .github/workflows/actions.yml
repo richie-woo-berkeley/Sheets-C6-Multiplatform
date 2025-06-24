@@ -4,10 +4,10 @@ jobs:
   Update-AS-Project:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Main
+      - name: Checkout TEST BRANCH
         uses: actions/checkout@v4
         with:
-          ref: 'main'
+          ref: 'test-gcp'
 
       - name: list files please
         run: |
