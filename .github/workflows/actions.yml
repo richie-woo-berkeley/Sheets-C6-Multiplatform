@@ -9,14 +9,6 @@ jobs:
         with:
           ref: 'test-gcp'
 
-      - name: list files please
-        run: |
-          search_dir=/home/runner/work/Sheets-C6-Multiplatform/Sheets-C6-Multiplatform/src
-          for entry in "$search_dir"/*
-          do
-            echo "$entry"
-          done
-
       - name: Change js to gs
         run: find /home/runner/work/Sheets-C6-Multiplatform/Sheets-C6-Multiplatform/src -depth -name "*.js" -exec sh -c 'mv "$1" "${1%.js}.gs"' _ {} \;
        
@@ -36,14 +28,6 @@ jobs:
           credentials_json: '${{ secrets.GOOGLE_CREDENTIALS }}' 
           token_format: access_token
           access_token_scopes: "https://www.googleapis.com/auth/script.projects"
-      
-      - name: list files please
-        run: |
-          search_dir=/home/runner/work/Sheets-C6-Multiplatform/Sheets-C6-Multiplatform/src
-          for entry in "$search_dir"/*
-          do
-            echo "$entry"
-          done
 
       - name: Push Script Code
         uses: shiftavenue/gas-action@v0
