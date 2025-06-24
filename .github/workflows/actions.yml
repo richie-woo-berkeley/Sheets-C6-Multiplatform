@@ -31,6 +31,6 @@ jobs:
         with:
           # Use push command
           command: push
-          project-id: '${{ secrets.PROJECT_ID }}'
+          project-id: ${{ secrets.PROJECT_ID }}
           access-token: ${{ steps.google-auth.outputs.access_token }}
           script-dir: src
