@@ -4,7 +4,6 @@ jobs:
   Update-AS-Project:
     runs-on: ubuntu-latest
     steps:
-      
       - name: Checkout Main
         uses: actions/checkout@v4
         with:
@@ -13,14 +12,14 @@ jobs:
       - name: Change js to gs
         run: find /home/runner/work/Sheets-C6-Multiplatform/Sheets-C6-Multiplatform/src -depth -name "*.js" -exec sh -c 'mv "$1" "${1%.js}.gs"' _ {} \;
        
-#      - name: Push To apps-script Branch
-#        uses: s0/git-publish-subdir-action@develop
-#        env:
-#          REPO: self
-#          BRANCH: apps-script
-#          FOLDER: src
-#          TARGET_DIR: src
-#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Push To apps-script Branch
+        uses: s0/git-publish-subdir-action@develop
+        env:
+          REPO: self
+          BRANCH: apps-script
+          FOLDER: src
+          TARGET_DIR: src
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Authenticate Service Account
         id: google-auth
@@ -29,11 +28,17 @@ jobs:
           credentials_json: '${{ secrets.GOOGLE_CREDENTIALS }}' 
           token_format: access_token
           access_token_scopes: "https://www.googleapis.com/auth/script.projects"
+      
+      - name: list Files
+        uses: mirko-felice/list-files-action@v3.0.5
+        with:
+          repo: ${{ github.repository }}
+          path: "."
+          ext: ".json"
 
       - name: Push Script Code
         uses: shiftavenue/gas-action@v0
         with:
-          # Use push command
           command: push
           project-id: ${{ secrets.PROJECT_ID }}
           access-token: ${{ steps.google-auth.outputs.access_token }}
