@@ -3,6 +3,9 @@ on: [push]
 jobs:
   Update-AS-Project:
     runs-on: ubuntu-latest
+    permissions:
+      contents: 'write'
+      id-token: 'write'
     steps:
       - name: Checkout TEST BRANCH
         uses: actions/checkout@v4
@@ -25,7 +28,11 @@ jobs:
         id: google-auth
         uses: 'google-github-actions/auth@v2'
         with:
+          project_id: 'c6-multiplatform'
           credentials_json: '${{ secrets.GOOGLE_CREDENTIALS }}' 
+          access_token_subject: 'c9-multiplatform@berkeley.edu'
+          token_format: 'access_token'
+          access_token_scopes: "https://www.googleapis.com/auth/script.projects"
 
       - name: Push Script Code
         uses: shiftavenue/gas-action@v0
