@@ -9,6 +9,14 @@ jobs:
         with:
           ref: 'main'
 
+      - name: list files please
+        run: |
+          search_dir=/home/runner/work/Sheets-C6-Multiplatform/Sheets-C6-Multiplatform/src
+          for entry in "$search_dir"/*
+          do
+            echo "$entry"
+          done
+
       - name: Change js to gs
         run: find /home/runner/work/Sheets-C6-Multiplatform/Sheets-C6-Multiplatform/src -depth -name "*.js" -exec sh -c 'mv "$1" "${1%.js}.gs"' _ {} \;
        
