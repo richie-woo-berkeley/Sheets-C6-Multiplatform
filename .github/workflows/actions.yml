@@ -1,20 +1,10 @@
 name: Push Src To apps-script Branch
 on: [push]
-env:
-  ENCODED_CRED_SECRET: ${{ secrets.GOOGLE_CREDENTIALS }}
 jobs:
   Update-AS-Project:
     runs-on: ubuntu-latest
     steps:
-      - name: Decode Secrets
-        run: |
-          if [ ! -x "$(command -v jq)" ]; then
-            echo "jq not found, installing..."
-            sudo apt-get update
-            sudo apt-get install -y jq
-          fi
-          echo "${{ env.ENCODED_CRED_SECRET }}" | base64 --decode | jq -r 'to_entries[] | "\(.key)=\(.value)"' | while read line; do echo "$line" >> $GITHUB_ENV; echo "::add-mask::${line#*=}"; done
-
+      
       - name: Checkout Main
         uses: actions/checkout@v4
         with:
