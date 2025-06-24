@@ -29,12 +29,13 @@ jobs:
           token_format: access_token
           access_token_scopes: "https://www.googleapis.com/auth/script.projects"
       
-      - name: list Files
-        uses: mirko-felice/list-files-action@v3.0.5
-        with:
-          repo: ${{ github.repository }}
-          path: "."
-          ext: ".json"
+      - name: list files please
+        run: |
+          search_dir=/home/runner/work/Sheets-C6-Multiplatform/Sheets-C6-Multiplatform/src
+          for entry in "$search_dir"/*
+          do
+            echo "$entry"
+          done
 
       - name: Push Script Code
         uses: shiftavenue/gas-action@v0
